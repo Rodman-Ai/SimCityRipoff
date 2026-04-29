@@ -6,10 +6,29 @@ SR.input = (() => {
   let dragging = false;
   let dragMode = null; // 'pan' | 'paint'
   let lastX = 0, lastY = 0;
+  let lastTileX = -1, lastTileY = -1; // last tile we applied a paint to
   let pinchStartDist = 0;
   let pinchStartZoom = 1;
   let pinchCenter = null;
   const cursor = { x: 0, y: 0, sx: 0, sy: 0 };
+
+  // Bresenham line — call applyAt on every tile from (x0,y0) to (x1,y1)
+  // so fast drags don't skip squares.
+  function paintLine(x0, y0, x1, y1) {
+    if (x0 < 0 || y0 < 0) { SR.tools.applyAt(x1, y1); return; }
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    let x = x0, y = y0;
+    let safety = 256;
+    while (safety-- > 0) {
+      SR.tools.applyAt(x, y);
+      if (x === x1 && y === y1) break;
+      const e2 = err * 2;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx)  { err += dx; y += sy; }
+    }
+  }
 
   function init(c) {
     canvas = c;
@@ -54,6 +73,7 @@ SR.input = (() => {
     } else {
       dragMode = 'paint';
       dragging = true;
+      lastTileX = cursor.x; lastTileY = cursor.y;
       SR.tools.applyAt(cursor.x, cursor.y);
     }
   }
@@ -66,10 +86,13 @@ SR.input = (() => {
     if (dragMode === 'pan') {
       SR.camera.pan(dx, dy);
     } else if (dragMode === 'paint') {
-      SR.tools.applyAt(cursor.x, cursor.y);
+      if (cursor.x !== lastTileX || cursor.y !== lastTileY) {
+        paintLine(lastTileX, lastTileY, cursor.x, cursor.y);
+        lastTileX = cursor.x; lastTileY = cursor.y;
+      }
     }
   }
-  function onMouseUp() { dragging = false; dragMode = null; }
+  function onMouseUp() { dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1; }
 
   function onWheel(e) {
     e.preventDefault();
@@ -93,6 +116,7 @@ SR.input = (() => {
         dragMode = 'pan';
       } else {
         dragMode = 'paint';
+        lastTileX = cursor.x; lastTileY = cursor.y;
         SR.tools.applyAt(cursor.x, cursor.y);
       }
       lastTap = now;
@@ -117,7 +141,12 @@ SR.input = (() => {
       lastX = p.x; lastY = p.y;
       updateCursor(p.x, p.y);
       if (dragMode === 'pan') SR.camera.pan(dx, dy);
-      else if (dragMode === 'paint') SR.tools.applyAt(cursor.x, cursor.y);
+      else if (dragMode === 'paint') {
+        if (cursor.x !== lastTileX || cursor.y !== lastTileY) {
+          paintLine(lastTileX, lastTileY, cursor.x, cursor.y);
+          lastTileX = cursor.x; lastTileY = cursor.y;
+        }
+      }
     } else if (e.touches.length === 2) {
       const a = localXY(e.touches[0]);
       const b = localXY(e.touches[1]);
@@ -133,7 +162,7 @@ SR.input = (() => {
     }
   }
   function onTouchEnd(e) {
-    if (e.touches.length === 0) { dragging = false; dragMode = null; }
+    if (e.touches.length === 0) { dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1; }
     else if (e.touches.length === 1 && dragMode === 'pinch') {
       // continue as single-finger pan
       dragMode = 'pan';

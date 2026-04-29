@@ -67,6 +67,25 @@ Open `http://localhost:8000` and click **JACK IN**.
   scrolling drawer on small screens.
 - **Three difficulty presets** (Easy ₡40k, Normal ₡20k, Hard ₡10k) and seeded
   map generation so you can replay the same Neo-Rodman with friends.
+- **Day / night cycle** — sky tint, building windows light up at night, neon
+  ground halos under tall residences in the dark.
+- **Animated traffic** — orange/yellow car dots stream along roads,
+  density-scaled to adjacent built-up zones.
+- **Building variety** — every grown zone tile has its own deterministic
+  height, footprint, and window pattern so neighbourhoods don't look like a
+  copy/paste job.
+- **Floating in-canvas tile labels** show what you're hovering over and the
+  cost of the current tool.
+- **Drag-line painting** — fast drags don't skip tiles thanks to Bresenham
+  interpolation, even at maximum drag speed.
+- **Loans** — borrow up to ₡20k from the megacorps, repaid over 30 months
+  at 20% interest.
+- **Achievements** — 15 milestones from "Boot Sequence" (100 pop) to
+  "Megacity" (10k pop), Plaza Founder, Net Zero (clean megacity), and more.
+- **Onboarding tutorial** auto-opens for new mayors, accessible any time
+  from the menu.
+- **Ambient cyberpunk music** — synthesized drone pad + arpeggio loop with
+  a sweeping low-pass filter. Toggle from the menu.
 - **No build step, no dependencies** — pure HTML, CSS, and vanilla JS. Open
   the file, play the game.
 

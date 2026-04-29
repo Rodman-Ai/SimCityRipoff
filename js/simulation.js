@@ -344,7 +344,21 @@ SR.sim = (() => {
       }
     }
 
-    const expense = maintBuildings + maintRoads;
+    // Loan repayments
+    let loanPayment = 0;
+    if (SR.game.loans && SR.game.loans.length) {
+      const remaining = [];
+      for (const l of SR.game.loans) {
+        loanPayment += l.monthly;
+        l.balance -= l.monthly;
+        l.monthsLeft -= 1;
+        if (l.monthsLeft > 0 && l.balance > 0) remaining.push(l);
+      }
+      SR.game.loans = remaining;
+    }
+    SR.game.lastLoanPayment = loanPayment;
+
+    const expense = maintBuildings + maintRoads + loanPayment;
     const net = income - expense;
     SR.game.funds += net;
     SR.game.lastIncome = income;
@@ -374,6 +388,17 @@ SR.sim = (() => {
     }
   }
 
+  function checkAchievements() {
+    if (!SR.ACHIEVEMENTS) return;
+    for (const a of SR.ACHIEVEMENTS) {
+      if (SR.game.achievements[a.key] && SR.game.achievements[a.key].unlocked) continue;
+      if (a.test(SR.game)) {
+        SR.game.achievements[a.key] = { unlocked: true, at: SR.game.year + '-' + (SR.game.month + 1) };
+        SR.ui.unlockAchievement(a);
+      }
+    }
+  }
+
   // Called every game-month
   function tick() {
     if (netDirty) recomputeNetworks();
@@ -381,6 +406,7 @@ SR.sim = (() => {
     growZones();
     if (netDirty) recomputeNetworks(); // zones may have changed levels
     payDay();
+    checkAchievements();
 
     SR.disasters.maybeTrigger();
 

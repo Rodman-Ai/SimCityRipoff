@@ -7,6 +7,12 @@ SR.renderer = (() => {
   let frame = 0;
   let glitchUntil = 0;
 
+  // 0..1 — 0=full daylight, 1=deep night. Updated each frame from game.minute.
+  let darkness = 0;
+  // 0..1 — peak around dawn (0.25) and dusk (0.75)
+  let dawnDusk = 0;
+  function getDarkness() { return darkness; }
+
   function init(c) {
     canvas = c;
     ctx = canvas.getContext('2d');
@@ -122,14 +128,81 @@ SR.renderer = (() => {
     ctx.stroke();
   }
 
-  function drawWaterEdge(sx, sy, hw, hh) {
-    // shimmer accent line on water
-    ctx.strokeStyle = 'rgba(58,215,255,0.18)';
-    ctx.beginPath();
-    const t = (frame * 0.05) % 1;
-    ctx.moveTo(sx - hw + hw * t, sy);
-    ctx.lineTo(sx + hw - hw * t, sy);
-    ctx.stroke();
+  function drawWaterEdge(sx, sy, hw, hh, x, y) {
+    // Two moving wave lines plus a faint sparkle
+    const phase = (frame * 0.04 + x * 0.31 + y * 0.17);
+    for (let i = 0; i < 2; i++) {
+      const t = ((phase + i * 0.5) % 1);
+      const yo = (i - 0.5) * hh * 0.35;
+      const wAlpha = 0.18 + 0.18 * Math.sin(phase * 6 + i);
+      ctx.strokeStyle = `rgba(58,215,255,${wAlpha.toFixed(3)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx - hw * 0.6 + hw * t * 0.4, sy + yo);
+      ctx.lineTo(sx + hw * 0.6 - hw * (1 - t) * 0.4, sy + yo);
+      ctx.stroke();
+    }
+    if ((frame + x * 7 + y * 13) % 23 === 0) {
+      ctx.fillStyle = 'rgba(180,230,255,0.7)';
+      ctx.fillRect(sx + (Math.sin(phase * 11) * hw * 0.3) | 0, sy - hh * 0.2 | 0, 1, 1);
+    }
+  }
+
+  // Animated traffic dots moving along road tiles. Slot count scales with
+  // adjacent zone density to suggest busier streets.
+  function drawTraffic(sx, sy, hw, hh, t, x, y) {
+    const left = SR.grid.get(x, y - 1);
+    const right = SR.grid.get(x, y + 1);
+    const up = SR.grid.get(x - 1, y);
+    const down = SR.grid.get(x + 1, y);
+    const horiz = (left && left.road) || (right && right.road);
+    const vert = (up && up.road) || (down && down.road);
+    if (!horiz && !vert) return;
+
+    // Density: count adjacent built-up zones to scale traffic
+    let density = 1;
+    for (const n of [left, right, up, down]) {
+      if (n && n.zone && n.level > 0) density += n.level;
+    }
+    const speed = (t.road === 2 ? 0.012 : 0.008);
+    const car = t.road === 2 ? '#ffd23a' : '#ff8a1f';
+
+    // E/W diamond axis: from (sx-hw, sy) to (sx+hw, sy)
+    if (horiz) {
+      const slots = Math.min(3, density);
+      for (let i = 0; i < slots; i++) {
+        const tt = ((frame * speed) + (x * 0.13 + y * 0.07) + i / slots) % 1;
+        const px = sx - hw + tt * (2 * hw);
+        const py = sy - hh * 0.18;
+        ctx.fillStyle = car;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+      // opposite lane (different direction)
+      for (let i = 0; i < slots; i++) {
+        const tt = (1 - (((frame * speed) + (x * 0.27 + y * 0.21) + i / slots) % 1));
+        const px = sx - hw + tt * (2 * hw);
+        const py = sy + hh * 0.18;
+        ctx.fillStyle = car;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+    }
+    if (vert) {
+      const slots = Math.min(3, density);
+      for (let i = 0; i < slots; i++) {
+        const tt = ((frame * speed) + (x * 0.41 + y * 0.11) + i / slots) % 1;
+        const px = sx - hw * 0.18;
+        const py = sy - hh + tt * (2 * hh);
+        ctx.fillStyle = car;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+      for (let i = 0; i < slots; i++) {
+        const tt = (1 - (((frame * speed) + (x * 0.19 + y * 0.37) + i / slots) % 1));
+        const px = sx + hw * 0.18;
+        const py = sy - hh + tt * (2 * hh);
+        ctx.fillStyle = car;
+        ctx.fillRect(px - 1, py - 1, 2, 2);
+      }
+    }
   }
 
   function drawZone(sx, sy, hw, hh, t) {
@@ -217,16 +290,20 @@ SR.renderer = (() => {
     ctx.setLineDash([]);
   }
 
-  function drawZoneBuilding(sx, sy, hw, hh, t) {
+  function drawZoneBuilding(sx, sy, hw, hh, t, x, y) {
     const v = SR.ZONE_VIS[t.zone];
     if (!v) return;
     const lvl = SR.utils.clamp(t.level, 1, 3);
-    const h = (8 + lvl * 14) * SR.camera.getZoom();
-    // base color tinted by level
-    const body = v.tint[lvl] || v.tint[3];
-    // Building footprint (single tile)
-    const bw = hw * 0.7;
-    const bh = hh * 0.7;
+    // Deterministic per-tile variation: heightMul, footprintMul, window pattern
+    const h32 = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+    const heightMul = 0.7 + ((h32 & 0xff) / 255) * 0.7;          // 0.7..1.4
+    const footMul = 0.55 + (((h32 >>> 8) & 0xff) / 255) * 0.30;  // 0.55..0.85
+    const wPat = ((h32 >>> 16) & 7);                              // 0..7
+    const tint = ((h32 >>> 19) & 0xf) / 15 - 0.5;                // -0.5..0.5
+    const h = (8 + lvl * 14) * SR.camera.getZoom() * heightMul;
+    const body = shade(v.tint[lvl] || v.tint[3], tint * 0.06);
+    const bw = hw * footMul;
+    const bh = hh * footMul;
     // top
     ctx.fillStyle = shade(body, 0.05);
     ctx.beginPath();
@@ -266,17 +343,38 @@ SR.renderer = (() => {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // windows — pixel rows
-    const rows = lvl + 1;
+    // windows — pixel rows. At night more windows are lit; pattern varies per-tile.
+    const rows = lvl + 2;
     const cols = 2;
+    const offHour = ((SR.game.minute / 60) | 0) & 0xff;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const wx = sx - bw * 0.4 + (bw * 0.4) * c;
         const wy = sy - h + bh * 0.2 + (h - bh * 0.4) * (r / rows);
-        const lit = ((SR.game.minute + r * 7 + c * 13 + (sx | 0)) % 9) < 6;
-        ctx.fillStyle = lit ? '#ffaa1f' : '#221308';
-        ctx.fillRect(wx | 0, wy | 0, 2, 2);
+        // Threshold per window depends on its own seed plus night intensity.
+        const seed = (h32 ^ (r * 2654435769) ^ (c * 40503) ^ (wPat * 11)) >>> 0;
+        const flicker = (seed + offHour) & 15;
+        const litThresh = 6 + ((1 - darkness) * 8); // night → lower threshold → more lit
+        const lit = flicker < (16 - litThresh);
+        if (lit) {
+          ctx.fillStyle = '#ffd28a';
+          ctx.fillRect(wx | 0, wy | 0, 2, 2);
+        } else {
+          ctx.fillStyle = '#221308';
+          ctx.fillRect(wx | 0, wy | 0, 2, 2);
+        }
       }
+    }
+    // Soft neon ground halo when night
+    if (darkness > 0.2 && lvl >= 2) {
+      const glow = darkness * 0.35;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,150,40,${glow.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy + bh * 0.4, bw * 1.2, bh * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // unpowered indicator
@@ -417,13 +515,59 @@ SR.renderer = (() => {
     ctx.restore();
   }
 
+  function updateDayNight() {
+    // 1 in-game day = 1440 minutes. Game.minute increments per real-time frame
+    // and per-month tick — fine grained enough for a smooth cycle.
+    const phase = ((SR.game.minute % 1440) / 1440 + 0.25) % 1; // shift so dawn ~ 0
+    // sun intensity: 1 at noon, 0 at midnight, smooth
+    const sun = Math.max(0, Math.sin(phase * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5);
+    darkness = SR.utils.clamp(1 - sun, 0, 1);
+    // dawn/dusk peak ~ 0.25 / 0.75 of the cycle
+    const distDawn = Math.min(Math.abs(phase - 0.25), 1 - Math.abs(phase - 0.25));
+    const distDusk = Math.min(Math.abs(phase - 0.75), 1 - Math.abs(phase - 0.75));
+    dawnDusk = SR.utils.clamp(1 - Math.min(distDawn, distDusk) * 6, 0, 1);
+  }
+
+  function drawSky() {
+    // Drawn UNDER everything — sky gradient that shifts with day/night.
+    const W = canvas.width, H = canvas.height;
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    if (darkness < 0.15) {
+      // bright day
+      grad.addColorStop(0, '#1a0e08'); grad.addColorStop(1, '#06030a');
+    } else if (darkness < 0.55) {
+      // dusk warm
+      grad.addColorStop(0, '#2a0e02'); grad.addColorStop(1, '#04030a');
+    } else {
+      // night
+      grad.addColorStop(0, '#0a0510'); grad.addColorStop(1, '#000');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawDayNightOverlay() {
+    if (darkness > 0.05) {
+      ctx.fillStyle = `rgba(8,4,28,${(darkness * 0.5).toFixed(3)})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    if (dawnDusk > 0.02) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = `rgba(255,110,40,${(dawnDusk * 0.18).toFixed(3)})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    }
+  }
+
   function render() {
     frame++;
-    ctx.fillStyle = '#04030a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    updateDayNight();
 
-    // subtle grid backdrop (parallax stars)
-    drawStars();
+    drawSky();
+
+    // subtle grid backdrop (parallax stars) — more visible at night
+    drawStars(0.4 + darkness * 0.8);
 
     const cam = SR.camera;
     const hw = (cam.TILE_W / 2) * cam.getZoom();
@@ -441,9 +585,12 @@ SR.renderer = (() => {
             sc.sy < -hh * 8 || sc.sy > canvas.height + hh * 12) continue;
 
         drawTileBase(sc.sx, sc.sy, hw, hh, t);
-        if (t.t === 'water' && (frame % 8) === 0) drawWaterEdge(sc.sx, sc.sy, hw, hh);
+        if (t.t === 'water') drawWaterEdge(sc.sx, sc.sy, hw, hh, x, y);
 
-        if (t.road) drawRoad(sc.sx, sc.sy, hw, hh, t, x, y);
+        if (t.road) {
+          drawRoad(sc.sx, sc.sy, hw, hh, t, x, y);
+          drawTraffic(sc.sx, sc.sy, hw, hh, t, x, y);
+        }
         else if (t.zone && t.level === 0) drawZone(sc.sx, sc.sy, hw, hh, t);
         if (t.power && !t.building) drawPower(sc.sx, sc.sy, hw, hh);
         if (t.pipe && !t.building) drawPipe(sc.sx, sc.sy, hw, hh);
@@ -464,7 +611,7 @@ SR.renderer = (() => {
         if (sc.sx < -hw * 4 || sc.sx > canvas.width + hw * 4 ||
             sc.sy < -hh * 8 || sc.sy > canvas.height + hh * 12) continue;
 
-        if (t.zone && t.level > 0) drawZoneBuilding(sc.sx, sc.sy, hw, hh, t);
+        if (t.zone && t.level > 0) drawZoneBuilding(sc.sx, sc.sy, hw, hh, t, x, y);
         if (t.building) {
           gridXFromScreenContext.x = x; gridXFromScreenContext.y = y;
           drawSpecialBuilding(sc.sx, sc.sy, hw, hh, t);
@@ -473,7 +620,9 @@ SR.renderer = (() => {
       }
     }
 
+    drawDayNightOverlay();
     drawCursorHighlight();
+    drawHoverLabel();
 
     // Overlay glitch for disasters
     if (performance.now() < glitchUntil) {
@@ -498,9 +647,73 @@ SR.renderer = (() => {
     ctx.fill();
   }
 
+  function drawHoverLabel() {
+    const cur = SR.input && SR.input.cursor;
+    if (!cur) return;
+    const t = SR.grid.get(cur.x, cur.y);
+    if (!t) return;
+    let label = '';
+    if (t.t === 'water') label = 'WATER';
+    else if (t.building) {
+      const def = SR.BUILDINGS[t.building];
+      label = (def && def.label) || String(t.building).toUpperCase();
+    } else if (t.zone && t.level > 0) {
+      label = SR.ZONE_VIS[t.zone].name + ' L' + t.level;
+    } else if (t.zone) {
+      label = SR.ZONE_VIS[t.zone].name + ' (empty)';
+    } else if (t.road) {
+      label = t.road === 2 ? 'NEON HIGHWAY' : 'ROAD';
+    } else if (t.power) label = 'POWER LINE';
+    else if (t.pipe) label = 'WATER PIPE';
+    else label = 'GROUND z' + t.z;
+
+    // Show tool action preview (e.g. cost) for build tools
+    const tool = SR.tools && SR.tools.current;
+    let sub = '';
+    if (tool && tool !== 'select') {
+      const cost = SR.tools.getCost(tool);
+      if (cost > 0) sub = '₡' + cost;
+    }
+    if (t.zone && t.level > 0 && t.pop > 0) sub = (sub ? sub + '  ' : '') + 'pop ' + t.pop;
+    if (t.zone && t.level > 0 && t.jobs > 0) sub = (sub ? sub + '  ' : '') + 'jobs ' + t.jobs;
+
+    const cam = SR.camera;
+    const sc = cam.tileToScreen(cur.x, cur.y, t.z);
+    const hh = (cam.TILE_H / 2) * cam.getZoom();
+    const fontPx = 12;
+    ctx.font = fontPx + 'px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lw = Math.max(ctx.measureText(label).width, sub ? ctx.measureText(sub).width : 0);
+    const w = Math.ceil(lw) + 14;
+    const h = sub ? 30 : 18;
+    const lx = sc.sx - w / 2;
+    const ly = sc.sy - hh - h - 6;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,4,2,0.85)';
+    ctx.fillRect(lx, ly, w, h);
+    ctx.strokeStyle = '#ff8a1f';
+    ctx.shadowColor = '#ff8a1f';
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(lx + 0.5, ly + 0.5, w - 1, h - 1);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffd28a';
+    ctx.fillText(label, sc.sx, ly + (sub ? 9 : h / 2));
+    if (sub) {
+      ctx.fillStyle = '#ffaa1f';
+      ctx.font = (fontPx - 1) + 'px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText(sub, sc.sx, ly + 22);
+    }
+    // tail
+    ctx.fillStyle = '#ff8a1f';
+    ctx.fillRect(sc.sx - 1, ly + h, 2, 4);
+    ctx.restore();
+  }
+
   // Background star/parallax field — subtle
   let starsBuf = null;
-  function drawStars() {
+  function drawStars(alphaMul) {
     if (!starsBuf) {
       starsBuf = document.createElement('canvas');
       starsBuf.width = 400; starsBuf.height = 400;
@@ -524,12 +737,15 @@ SR.renderer = (() => {
     const ox = -cam.cx * 0.05;
     const oy = -cam.cy * 0.05;
     const W = canvas.width, H = canvas.height;
+    const a = (alphaMul == null ? 1 : alphaMul);
+    ctx.globalAlpha = SR.utils.clamp(a, 0, 1);
     for (let y = -((oy % 400 + 400) % 400); y < H; y += 400) {
       for (let x = -((ox % 400 + 400) % 400); x < W; x += 400) {
         ctx.drawImage(starsBuf, x, y);
       }
     }
+    ctx.globalAlpha = 1;
   }
 
-  return { init, resize, render, triggerGlitch };
+  return { init, resize, render, triggerGlitch, getDarkness };
 })();

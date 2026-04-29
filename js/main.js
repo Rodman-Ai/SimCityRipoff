@@ -51,6 +51,8 @@
     if (!loaded) {
       SR.game.newCity({ name: 'Neo-Rodman', seed: (Math.random() * 1e9) | 0, funds: 20000 });
       SR.ui.alert('NEW CITY: NEO-RODMAN', 'good');
+      // Show the tutorial after a short delay so the alert lands first
+      setTimeout(() => { if (!SR.game.tutorialDone) SR.ui.openTutorial(); }, 800);
     } else {
       SR.ui.alert('CITY LOADED', 'good');
     }

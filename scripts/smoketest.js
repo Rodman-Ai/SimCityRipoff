@@ -154,8 +154,21 @@ if (SR.game.population <= 0) {
   console.log('Population grew successfully ✓');
 }
 
+// Achievements check — firstR should have fired once R-zones built up
+const achv = SR.game.achievements || {};
+console.log('Achievements:', Object.keys(achv).filter(k => achv[k].unlocked).join(', ') || '(none)');
+if (!achv.firstR || !achv.firstR.unlocked) console.warn('WARNING: firstR achievement did not fire');
+
+// Loans round-trip
+SR.game.funds = 1000;
+SR.game.loans.push({ id: 99, principal: 1200, balance: 1200, monthly: 40, monthsLeft: 30 });
+SR.game.stepMonth();
+console.log('After loan tick: funds =', Math.round(SR.game.funds), 'loanPayment =', SR.game.lastLoanPayment, 'loans left =', SR.game.loans.length);
+
 // Save/load round-trip
 const json = SR.save.exportJson();
 const ok = SR.save.importJson(json);
 console.log('Save/load round-trip:', ok ? 'OK' : 'FAIL');
+const post = SR.game.loans.length;
+console.log('Loans after restore:', post);
 console.log('Smoke test PASS');

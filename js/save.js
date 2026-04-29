@@ -19,6 +19,10 @@ SR.save = (() => {
         approval: SR.game.approval,
         history: SR.game.history,
         ordinances: SR.game.ordinances,
+        loans: SR.game.loans,
+        nextLoanId: SR.game.nextLoanId,
+        achievements: SR.game.achievements,
+        tutorialDone: SR.game.tutorialDone,
       },
       tiles: SR.grid.tiles.map(t => ({
         z: t.z, t: t.t, road: t.road, power: t.power ? 1 : 0, pipe: t.pipe ? 1 : 0,
@@ -38,6 +42,10 @@ SR.save = (() => {
     SR.game.approval = data.game.approval;
     SR.game.history = data.game.history || [];
     SR.game.ordinances = data.game.ordinances || {};
+    SR.game.loans = data.game.loans || [];
+    SR.game.nextLoanId = data.game.nextLoanId || 1;
+    SR.game.achievements = data.game.achievements || {};
+    SR.game.tutorialDone = !!data.game.tutorialDone;
     SR.game.cityName = (data.meta && data.meta.cityName) || SR.game.cityName || 'Neo-Rodman';
 
     // Rebuild blank grid then restore

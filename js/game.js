@@ -17,9 +17,14 @@ SR.game = (() => {
     power: { supply: 0, demand: 0 },
     water: { supply: 0, demand: 0 },
     lastIncome: 0, lastExpense: 0,
+    lastLoanPayment: 0,
     history: [],
     newsLog: [],
     ordinances: {},
+    loans: [],         // [{ id, principal, balance, monthly, monthsLeft }]
+    nextLoanId: 1,
+    achievements: {},  // key -> { unlocked: bool, at: 'YYYY-MM' }
+    tutorialDone: false,
   };
 
   // months per real-time second per speed
@@ -63,8 +68,11 @@ SR.game = (() => {
     state.demand = { r: 50, c: 30, i: 30 };
     state.power = { supply: 0, demand: 0 };
     state.water = { supply: 0, demand: 0 };
-    state.lastIncome = 0; state.lastExpense = 0;
+    state.lastIncome = 0; state.lastExpense = 0; state.lastLoanPayment = 0;
     state.history = []; state.newsLog = []; state.ordinances = {};
+    state.loans = []; state.nextLoanId = 1;
+    state.achievements = {};
+    state.tutorialDone = false;
     SR.grid.init(state.seed);
     SR.camera.center(SR.GRID_W / 2, SR.GRID_H / 2);
     SR.sim.markDirty();

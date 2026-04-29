@@ -127,3 +127,50 @@ SR.TOOL_TO_BUILDING = {};
 for (const [k, b] of Object.entries(SR.BUILDINGS)) {
   if (b.tool) SR.TOOL_TO_BUILDING[b.tool] = k;
 }
+
+// Helper for achievement tests: count built things
+function _countBuilding(key) {
+  if (!SR.grid || !SR.grid.tiles) return 0;
+  let n = 0;
+  for (const t of SR.grid.tiles) if (t.building === key && t.bx === undefined ? false : true) {
+    // count once via top-left
+  }
+  // Simpler: walk tiles directly
+  n = 0;
+  const W = SR.GRID_W, H = SR.GRID_H;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const t = SR.grid.get(x, y);
+      if (t.building === key && t.bx === x && t.by === y) n++;
+    }
+  }
+  return n;
+}
+function _hasAnyZone(kind) {
+  if (!SR.grid || !SR.grid.tiles) return false;
+  for (const t of SR.grid.tiles) if (t.zone === kind && t.level > 0) return true;
+  return false;
+}
+
+SR.ACHIEVEMENTS = [
+  { key: 'pop100',  name: 'Boot Sequence',     desc: 'Reach 100 citizens',                  test: g => g.population >= 100 },
+  { key: 'pop1k',   name: 'Going Online',      desc: 'Reach 1,000 citizens',                test: g => g.population >= 1000 },
+  { key: 'pop5k',   name: 'Critical Mass',     desc: 'Reach 5,000 citizens',                test: g => g.population >= 5000 },
+  { key: 'pop10k',  name: 'Megacity',          desc: 'Reach 10,000 citizens',               test: g => g.population >= 10000 },
+  { key: 'firstR',  name: 'Tenants Move In',   desc: 'First built-up residential block',    test: g => _hasAnyZone('r') },
+  { key: 'firstC',  name: 'Open For Business', desc: 'First built-up commercial block',     test: g => _hasAnyZone('c') },
+  { key: 'firstI',  name: 'Smokestack',        desc: 'First built-up industrial block',     test: g => _hasAnyZone('i') },
+  { key: 'fusion',  name: 'Fusion Future',     desc: 'Build a Fusion Reactor',              test: g => _countBuilding('fusion') > 0 },
+  { key: 'corp',    name: 'Megacorp Era',      desc: 'Build a Megacorp Tower',              test: g => _countBuilding('megacorp') > 0 },
+  { key: 'arco',    name: 'Arcology Age',      desc: 'Build a Neon Arcology',               test: g => _countBuilding('arcology') > 0 },
+  { key: 'plaza',   name: 'Plaza Founder',     desc: 'Build the Rodman Plaza',              test: g => _countBuilding('plaza') > 0 },
+  { key: 'rich',    name: 'Funded',            desc: 'Have ₡100,000 in the bank',           test: g => g.funds >= 100000 },
+  { key: 'apr95',   name: 'Beloved Mayor',     desc: 'Reach 95% approval',                  test: g => g.approval >= 95 },
+  { key: 'green',   name: 'Net Zero',          desc: '1,000+ pop with average pollution < 5', test: g => {
+      if (g.population < 1000) return false;
+      let n = 0, s = 0;
+      for (const t of SR.grid.tiles) if (t.zone) { n++; s += t.pollution || 0; }
+      return n > 0 && (s / n) < 5;
+  } },
+];
+

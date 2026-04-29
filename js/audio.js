@@ -5,6 +5,8 @@ SR.audio = (() => {
   let ctx = null;
   let on = true;
   let masterGain = null;
+  let music = null; // ambient pad nodes
+  let musicOn = false;
 
   function ensure() {
     if (ctx) return ctx;
@@ -67,5 +69,86 @@ SR.audio = (() => {
     levelup: () => { [880, 1100, 1320].forEach((f, i) => setTimeout(() => blip(f, 0.07, 'triangle'), i * 60)); },
   };
 
-  return { setOn, isOn, toggle, ensure, sfx: SFX };
+  // Ambient cyberpunk music — two detuned saw drones with a low-pass filter
+  // that slowly sweeps, plus an arpeggiator picking notes from a minor scale.
+  function startMusic() {
+    if (musicOn) return;
+    const c = ensure();
+    if (!c) return;
+    musicOn = true;
+    const out = c.createGain();
+    out.gain.value = 0.0;
+    out.connect(masterGain);
+
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 350;
+    filter.Q.value = 8;
+    filter.connect(out);
+
+    const oscs = [];
+    [55, 55 * 1.005, 82.5, 82.5 * 0.995].forEach(f => {
+      const o = c.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      const g = c.createGain();
+      g.gain.value = 0.18;
+      o.connect(g).connect(filter);
+      o.start();
+      oscs.push({ o, g });
+    });
+
+    // Slow filter sweep
+    const sweep = setInterval(() => {
+      const now = c.currentTime;
+      const target = 220 + Math.random() * 800;
+      filter.frequency.cancelScheduledValues(now);
+      filter.frequency.linearRampToValueAtTime(target, now + 6);
+    }, 4500);
+
+    // Arpeggiator — A minor pentatonic
+    const scale = [220.0, 261.63, 293.66, 329.63, 392.0, 440.0, 523.25];
+    const arp = setInterval(() => {
+      if (!musicOn) return;
+      const f = scale[(Math.random() * scale.length) | 0];
+      const o = c.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = f * (Math.random() < 0.5 ? 1 : 2);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0, c.currentTime);
+      g.gain.linearRampToValueAtTime(0.04, c.currentTime + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 1.2);
+      o.connect(g).connect(masterGain);
+      o.start(); o.stop(c.currentTime + 1.3);
+    }, 1300);
+
+    // Fade in
+    out.gain.linearRampToValueAtTime(0.5, c.currentTime + 4);
+
+    music = { out, filter, oscs, sweep, arp };
+  }
+
+  function stopMusic() {
+    if (!musicOn || !music) { musicOn = false; return; }
+    musicOn = false;
+    const c = ctx;
+    music.out.gain.cancelScheduledValues(c.currentTime);
+    music.out.gain.linearRampToValueAtTime(0, c.currentTime + 1.5);
+    clearInterval(music.sweep);
+    clearInterval(music.arp);
+    setTimeout(() => {
+      try { music.oscs.forEach(({ o }) => o.stop()); } catch (e) {}
+      try { music.out.disconnect(); } catch (e) {}
+      music = null;
+    }, 1700);
+  }
+
+  function toggleMusic() {
+    if (musicOn) stopMusic(); else startMusic();
+    const el = document.getElementById('music-state');
+    if (el) el.textContent = musicOn ? 'ON' : 'OFF';
+  }
+  function isMusicOn() { return musicOn; }
+
+  return { setOn, isOn, toggle, ensure, sfx: SFX, startMusic, stopMusic, toggleMusic, isMusicOn };
 })();

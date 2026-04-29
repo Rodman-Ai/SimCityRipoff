@@ -50,7 +50,10 @@ SR.ui = (() => {
           case 'import': openImport(); break;
           case 'newcity': openNewCity(); break;
           case 'audio': SR.audio.toggle(); break;
+          case 'music': SR.audio.toggleMusic(); break;
           case 'help': openHelp(); break;
+          case 'achievements': openAchievements(); break;
+          case 'tutorial': openTutorial(true); break;
         }
       });
     });
@@ -101,6 +104,34 @@ SR.ui = (() => {
     wrap.appendChild(el);
     setTimeout(() => { el.style.opacity = 0; }, 2200);
     setTimeout(() => { el.remove(); }, 2800);
+  }
+
+  function unlockAchievement(a) {
+    const wrap = document.getElementById('alerts');
+    const el = document.createElement('div');
+    el.className = 'alert achv';
+    el.innerHTML = '<div style="font-size:12px;letter-spacing:2px;color:#ffd23a">★ ACHIEVEMENT UNLOCKED</div>'
+      + '<div style="font-size:15px">' + a.name + '</div>'
+      + '<div style="font-size:12px;color:var(--text-d)">' + a.desc + '</div>';
+    wrap.appendChild(el);
+    setTimeout(() => { el.style.opacity = 0; }, 4500);
+    setTimeout(() => { el.remove(); }, 5200);
+    SR.audio.sfx.levelup();
+    pushTicker('★ ' + a.name + ' — ' + a.desc);
+  }
+
+  function openAchievements() {
+    const list = SR.ACHIEVEMENTS || [];
+    let unlocked = 0;
+    const rows = list.map(a => {
+      const got = SR.game.achievements && SR.game.achievements[a.key] && SR.game.achievements[a.key].unlocked;
+      if (got) unlocked++;
+      const v = got
+        ? `<span class="v" style="color:#ffd23a">UNLOCKED</span>`
+        : `<span class="v" style="color:var(--text-dim)">— locked</span>`;
+      return `<div class="kv"><span class="k">${got ? '★ ' : '☆ '}${a.name}<div style="font-size:11px;color:var(--text-d)">${a.desc}</div></span>${v}</div>`;
+    }).join('');
+    openModal('ACHIEVEMENTS  (' + unlocked + ' / ' + list.length + ')', rows);
   }
 
   function pushTicker(msg) {
@@ -181,6 +212,11 @@ SR.ui = (() => {
   function openBudget() {
     const g = SR.game;
     const tax = g.taxRate;
+    const loanRows = (g.loans || []).map(l =>
+      `<div class="kv"><span class="k">Loan #${l.id}</span><span class="v">${SR.utils.fmtCredits(l.balance|0)} (${l.monthsLeft}mo @ ${SR.utils.fmtCredits(l.monthly)}/mo)</span></div>`
+    ).join('') || '<div class="kv"><span class="k">No active loans</span><span class="v">—</span></div>';
+    const totalLoanBal = (g.loans || []).reduce((s, l) => s + l.balance, 0);
+    const maxBorrow = SR.utils.clamp(20000 - totalLoanBal, 0, 20000);
     const html = `
       <div class="section-title">TAXATION</div>
       <div class="slider-row">
@@ -191,7 +227,17 @@ SR.ui = (() => {
       <div class="section-title">LAST MONTH</div>
       <div class="kv"><span class="k">Income</span><span class="v">${SR.utils.fmtCredits(g.lastIncome || 0)}</span></div>
       <div class="kv"><span class="k">Expense</span><span class="v">${SR.utils.fmtCredits(g.lastExpense || 0)}</span></div>
+      <div class="kv"><span class="k">  of which loans</span><span class="v">${SR.utils.fmtCredits(g.lastLoanPayment || 0)}</span></div>
       <div class="kv"><span class="k">Net</span><span class="v">${SR.utils.fmtCredits((g.lastIncome || 0) - (g.lastExpense || 0))}</span></div>
+      <div class="section-title">LOANS</div>
+      ${loanRows}
+      <div class="kv"><span class="k">Total balance</span><span class="v">${SR.utils.fmtCredits(totalLoanBal|0)} / ${SR.utils.fmtCredits(20000)} cap</span></div>
+      <div class="btn-row">
+        <button id="loan-2k"  ${maxBorrow >= 2000  ? '' : 'disabled'}>BORROW ₡2,000</button>
+        <button id="loan-5k"  ${maxBorrow >= 5000  ? '' : 'disabled'}>BORROW ₡5,000</button>
+        <button id="loan-10k" ${maxBorrow >= 10000 ? '' : 'disabled'}>BORROW ₡10,000</button>
+      </div>
+      <div style="color:var(--text-d);font-size:12px;margin-top:4px">Loans repaid over 30 months at ~20% total interest.</div>
       <div class="section-title">CITY</div>
       <div class="kv"><span class="k">Population</span><span class="v">${SR.utils.fmt(g.population)}</span></div>
       <div class="kv"><span class="k">Jobs</span><span class="v">${SR.utils.fmt(g.jobs)}</span></div>
@@ -208,6 +254,22 @@ SR.ui = (() => {
       val.textContent = v.toFixed(1) + '%';
       markStatsDirty();
     });
+    function takeLoan(amount) {
+      const interest = 0.20;
+      const months = 30;
+      const principal = amount * (1 + interest);
+      const monthly = Math.ceil(principal / months);
+      g.loans.push({ id: g.nextLoanId++, principal, balance: principal, monthly, monthsLeft: months });
+      g.funds += amount;
+      markStatsDirty();
+      SR.audio.sfx.cash();
+      alert('LOAN APPROVED: ' + SR.utils.fmtCredits(amount), 'good');
+      closeModal();
+      openBudget(); // refresh
+    }
+    const b2 = document.getElementById('loan-2k'); if (b2) b2.addEventListener('click', () => takeLoan(2000));
+    const b5 = document.getElementById('loan-5k'); if (b5) b5.addEventListener('click', () => takeLoan(5000));
+    const b10 = document.getElementById('loan-10k'); if (b10) b10.addEventListener('click', () => takeLoan(10000));
   }
 
   function openCharts() {
@@ -341,6 +403,42 @@ SR.ui = (() => {
     return h >>> 0;
   }
 
+  function openTutorial(force) {
+    if (!force && SR.game.tutorialDone) return;
+    const html = `
+      <div class="section-title">WELCOME TO NEO-RODMAN, MAYOR</div>
+      <p>Quick tour. Follow these in order — each is one click on the toolbar
+      then a click or drag on the map.</p>
+      <ol class="tips">
+        <li><b>Power.</b> Pick <span style="color:var(--orange-2)">⌬ Wind</span> or
+          <span style="color:var(--orange-2)">☀ Solar</span> in the toolbar and place
+          it next to where you'll build the city. Power plants must touch a road.</li>
+        <li><b>Roads.</b> Pick <span style="color:var(--orange-2)">≡ Road</span> and
+          drag a few streets out from the plant. Power and water travel through roads.</li>
+        <li><b>Water.</b> Pick <span style="color:var(--orange-2)">⊙ Pump</span> and
+          place it touching a road, away from any zoning.</li>
+        <li><b>Zone.</b> Use <span style="color:#3aff7a">R</span>,
+          <span style="color:#3ad7ff">C</span>,
+          <span style="color:#ffd23a">I</span> to paint districts directly next to
+          your roads. Zones must touch a carrier (road, wire, building).</li>
+        <li><b>Services.</b> Once population grows, add Police, Fire, Cyberclinic,
+          Datanet School, and Holoparks within their coverage radii.</li>
+        <li><b>Tax &amp; Loans.</b> Use the menu (top-right) to open
+          <i>Budget &amp; Taxes</i>. Loans available if you're stuck.</li>
+        <li><b>Camera.</b> Right-click drag (desktop) or two-finger drag (mobile)
+          to pan; wheel/pinch to zoom.</li>
+      </ol>
+      <div class="btn-row">
+        <button class="pri" id="tutorial-start">JACK IN, MAYOR</button>
+        <button id="tutorial-skip">SKIP</button>
+      </div>
+    `;
+    openModal('NEO-RODMAN ONBOARDING', html);
+    function done() { SR.game.tutorialDone = true; closeModal(); SR.save.save(); }
+    document.getElementById('tutorial-start').addEventListener('click', done);
+    document.getElementById('tutorial-skip').addEventListener('click', done);
+  }
+
   function openHelp() {
     const html = `
       <div class="section-title">CONTROLS</div>
@@ -376,11 +474,12 @@ SR.ui = (() => {
     init,
     markStatsDirty,
     updateStats,
-    alert, pushTicker,
+    alert, pushTicker, unlockAchievement,
     showTileInfo,
     updateCursorChip,
     openModal, closeModal,
     openHelp, openBudget, openCharts, openNews, openOrdinances,
     openExport, openImport, openNewCity,
+    openAchievements, openTutorial,
   };
 })();
