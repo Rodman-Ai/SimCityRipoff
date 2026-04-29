@@ -80,7 +80,8 @@ const SR = ctx.window.SR || ctx.SR;
 if (!SR) throw new Error('SR namespace missing');
 
 console.log('Modules loaded. Initializing city...');
-SR.game.newCity({ name: 'TestRodman', seed: 12345, funds: 30000 });
+// starter:false → blank slate so the test can build its own deterministic layout
+SR.game.newCity({ name: 'TestRodman', seed: 12345, funds: 30000, starter: false });
 console.log('Grid tiles:', SR.grid.tiles.length);
 
 // Build a tiny city: small power plant, water pump, road grid, R/C/I zones.
@@ -171,4 +172,35 @@ const ok = SR.save.importJson(json);
 console.log('Save/load round-trip:', ok ? 'OK' : 'FAIL');
 const post = SR.game.loans.length;
 console.log('Loans after restore:', post);
+// ----- Starter city test: a fresh newCity with starter=true should produce
+// a working city that grows population over a year of simulated time.
+console.log('---');
+console.log('Starter-city test:');
+SR.game.newCity({ name: 'StartRodman', seed: 7, funds: 20000 /* starter:true default */ });
+let starterRoads = 0, starterZones = 0, starterBuildings = 0;
+for (const t of SR.grid.tiles) {
+  if (t.road) starterRoads++;
+  if (t.zone) starterZones++;
+  if (t.building) starterBuildings++;
+}
+console.log('Starter pieces — roads:', starterRoads, 'zones:', starterZones, 'building tiles:', starterBuildings);
+if (starterRoads < 20 || starterZones < 10 || starterBuildings < 4) {
+  console.warn('WARNING: starter city looks too sparse');
+}
+SR.sim.markDirty();
+SR.sim.recomputeNetworks();
+let powered = 0, watered = 0, totalZones = 0;
+for (const t of SR.grid.tiles) if (t.zone) {
+  totalZones++;
+  if (t.poweredBy) powered++;
+  if (t.watered) watered++;
+}
+console.log('Starter zones with power:', powered, '/', totalZones, 'with water:', watered, '/', totalZones);
+if (powered !== totalZones || watered !== totalZones) {
+  console.warn('WARNING: not all starter zones are connected!');
+}
+for (let i = 0; i < 12; i++) SR.game.stepMonth();
+console.log('Starter pop after 12 months:', SR.game.population, 'funds:', Math.round(SR.game.funds));
+if (SR.game.population <= 0) console.warn('WARNING: starter city did not grow');
+
 console.log('Smoke test PASS');

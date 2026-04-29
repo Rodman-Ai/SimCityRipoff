@@ -67,6 +67,9 @@ Open `http://localhost:8000` and click **JACK IN**.
   scrolling drawer on small screens.
 - **Three difficulty presets** (Easy ₡40k, Normal ₡20k, Hard ₡10k) and seeded
   map generation so you can replay the same Neo-Rodman with friends.
+- **Starter city** — every new game starts with a working road grid, a wind
+  farm, water pump, holopark, and R/C/I zones already in place (free of
+  charge). Uncheck "Starter city" in *New City…* for a blank slate.
 - **Day / night cycle** — sky tint, building windows light up at night, neon
   ground halos under tall residences in the dark.
 - **Animated traffic** — orange/yellow car dots stream along roads,

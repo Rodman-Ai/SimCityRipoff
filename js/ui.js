@@ -382,6 +382,12 @@ SR.ui = (() => {
           <option value="normal" selected>NORMAL (₡20k)</option>
           <option value="hard">HARD (₡10k)</option>
         </select></span></div>
+      <div class="kv"><span class="k">Layout</span><span class="v">
+        <label style="cursor:pointer"><input type="checkbox" id="new-starter" checked style="accent-color:#ff6a00"> Starter city (recommended)</label>
+      </span></div>
+      <div style="font-size:12px;color:var(--text-d);margin:4px 0 8px 0">
+        Starter drops a road grid, wind farm, water pump, holopark and R/C/I zones — free of charge. Uncheck for a blank slate.
+      </div>
       <div class="btn-row"><button class="pri" id="newcity-btn">JACK IN</button></div>
     `;
     openModal('NEW CITY', html);
@@ -391,7 +397,8 @@ SR.ui = (() => {
       const seed = parseInt(seedRaw, 10) || hashStr(seedRaw);
       const diff = document.getElementById('new-diff').value;
       const funds = diff === 'easy' ? 40000 : diff === 'hard' ? 10000 : 20000;
-      SR.game.newCity({ name, seed, funds });
+      const starter = document.getElementById('new-starter').checked;
+      SR.game.newCity({ name, seed, funds, starter });
       closeModal();
       alert('NEW CITY: ' + name.toUpperCase(), 'good');
     });
@@ -407,24 +414,25 @@ SR.ui = (() => {
     if (!force && SR.game.tutorialDone) return;
     const html = `
       <div class="section-title">WELCOME TO NEO-RODMAN, MAYOR</div>
-      <p>Quick tour. Follow these in order — each is one click on the toolbar
-      then a click or drag on the map.</p>
+      <p>Your <b>starter city</b> is on the map: a road cross, a wind farm,
+      a water pump, a holopark, and one strip each of R/C/I zones. Press
+      <span style="color:var(--orange-2)">▶</span> to start time and watch
+      it boot. Now expand it.</p>
       <ol class="tips">
-        <li><b>Power.</b> Pick <span style="color:var(--orange-2)">⌬ Wind</span> or
-          <span style="color:var(--orange-2)">☀ Solar</span> in the toolbar and place
-          it next to where you'll build the city. Power plants must touch a road.</li>
-        <li><b>Roads.</b> Pick <span style="color:var(--orange-2)">≡ Road</span> and
-          drag a few streets out from the plant. Power and water travel through roads.</li>
-        <li><b>Water.</b> Pick <span style="color:var(--orange-2)">⊙ Pump</span> and
-          place it touching a road, away from any zoning.</li>
-        <li><b>Zone.</b> Use <span style="color:#3aff7a">R</span>,
+        <li><b>Find the city.</b> The camera is centered on the cross of
+          orange roads. Two power and water sources sit at its east and west ends.</li>
+        <li><b>Add roads.</b> Pick <span style="color:var(--orange-2)">≡ Road</span>
+          and drag new streets outward. Power &amp; water travel through them.</li>
+        <li><b>Zone more.</b> Use <span style="color:#3aff7a">R</span>,
           <span style="color:#3ad7ff">C</span>,
           <span style="color:#ffd23a">I</span> to paint districts directly next to
           your roads. Zones must touch a carrier (road, wire, building).</li>
         <li><b>Services.</b> Once population grows, add Police, Fire, Cyberclinic,
-          Datanet School, and Holoparks within their coverage radii.</li>
+          Datanet School, and more Holoparks within their coverage radii.</li>
+        <li><b>Power up.</b> Wind only outputs 50 kW. Build a Solar Array, then
+          Coal, then a Fusion Reactor as your city scales.</li>
         <li><b>Tax &amp; Loans.</b> Use the menu (top-right) to open
-          <i>Budget &amp; Taxes</i>. Loans available if you're stuck.</li>
+          <i>Budget &amp; Taxes</i>. Take a loan if you're stuck.</li>
         <li><b>Camera.</b> Right-click drag (desktop) or two-finger drag (mobile)
           to pan; wheel/pinch to zoom.</li>
       </ol>

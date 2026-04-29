@@ -5,6 +5,19 @@
 
 ---
 
+## 0. The Starter City
+
+Every new game spawns with a basic city already in place — a cross of
+roads, a Wind Farm + Water Pump, a Holopark, and one strip each of R/C/I
+zones. The pieces are gifted (no cost) so your starting funds stay intact.
+The camera centers on the cross.
+
+Press **▶** in the topbar to start time and watch the zones boot up. Then
+add roads, more power plants, services, and zones from there.
+
+If you want to start completely empty, uncheck **Starter city** in
+*Menu → New City…*
+
 ## 1. The Map
 
 The world is a **64×64 isometric tile grid**. Tiles are either **water** or
