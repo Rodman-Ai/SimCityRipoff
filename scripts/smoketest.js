@@ -1,0 +1,161 @@
+// scripts/smoketest.js — load all SR modules with stub DOM and run a few ticks.
+// Run with: node scripts/smoketest.js
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+// Minimal browser shim
+const documentStub = {
+  body: { },
+  getElementById: () => stubEl(),
+  querySelectorAll: () => [],
+  querySelector: () => null,
+  createElement: () => stubEl(),
+  addEventListener: () => {},
+};
+function stubEl() {
+  return new Proxy({
+    classList: { add: () => {}, remove: () => {}, toggle: () => {} },
+    style: {},
+    dataset: {},
+    addEventListener: () => {},
+    appendChild: () => {},
+    remove: () => {},
+    setAttribute: () => {},
+    getContext: () => ({
+      // canvas 2d stub
+      fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1,
+      shadowColor: '', shadowBlur: 0, font: '', textAlign: '', textBaseline: '',
+      globalCompositeOperation: 'source-over',
+      fillRect() {}, strokeRect() {}, clearRect() {},
+      beginPath() {}, moveTo() {}, lineTo() {}, closePath() {},
+      fill() {}, stroke() {}, arc() {}, save() {}, restore() {},
+      drawImage() {}, fillText() {}, setLineDash() {},
+      createImageData() { return { data: new Uint8ClampedArray(64 * 64 * 4) }; },
+      putImageData() {},
+    }),
+    appendChild() {}, contains() { return false; },
+    children: [], childNodes: [],
+    width: 800, height: 600,
+  }, {
+    get(t, k) { if (k in t) return t[k]; return () => {}; },
+    set(t, k, v) { t[k] = v; return true; },
+  });
+}
+const windowStub = {
+  addEventListener: () => {},
+  AudioContext: undefined,
+  webkitAudioContext: undefined,
+  devicePixelRatio: 1,
+};
+
+const ctx = vm.createContext({
+  console,
+  document: documentStub,
+  window: windowStub,
+  performance: { now: () => Date.now() },
+  setInterval: () => 0,
+  setTimeout: () => 0,
+  requestAnimationFrame: () => 0,
+  Math, Date, JSON,
+  Array, Object, Number, String, Boolean,
+  Float32Array, Uint8Array, Uint8ClampedArray, Int32Array,
+  parseInt, parseFloat, isFinite, isNaN,
+  localStorage: { getItem: () => null, setItem: () => {} },
+});
+
+const order = [
+  'utils.js', 'audio.js', 'buildings.js', 'grid.js', 'camera.js',
+  'renderer.js', 'minimap.js', 'input.js', 'tools.js',
+  'simulation.js', 'disasters.js', 'save.js', 'ui.js', 'game.js',
+];
+for (const f of order) {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8');
+  vm.runInContext(code, ctx, { filename: f });
+}
+
+const SR = ctx.window.SR || ctx.SR;
+if (!SR) throw new Error('SR namespace missing');
+
+console.log('Modules loaded. Initializing city...');
+SR.game.newCity({ name: 'TestRodman', seed: 12345, funds: 30000 });
+console.log('Grid tiles:', SR.grid.tiles.length);
+
+// Build a tiny city: small power plant, water pump, road grid, R/C/I zones.
+const W = SR.GRID_W, H = SR.GRID_H;
+// Find a clear 16x16 ground area
+function findGround(W, H) {
+  const r = 8;
+  for (let y = r; y < H - r; y++) {
+    for (let x = r; x < W - r; x++) {
+      let ok = true;
+      for (let dy = -r; dy <= r && ok; dy++)
+        for (let dx = -r; dx <= r && ok; dx++) {
+          const t = SR.grid.get(x + dx, y + dy);
+          if (!t || t.t !== 'ground') ok = false;
+        }
+      if (ok) return { x, y };
+    }
+  }
+  return null;
+}
+const c = findGround(W, H);
+if (!c) throw new Error('no clear ground area');
+const cx = c.x, cy = c.y;
+console.log('Center at', cx, cy);
+
+// roads first (so building needsRoad passes)
+for (let x = cx - 6; x <= cx + 6; x++) SR.grid.setRoad(x, cy, 1);
+for (let y = cy - 6; y <= cy + 6; y++) SR.grid.setRoad(cx, y, 1);
+// power & water plants directly adjacent to roads
+const placedWind = SR.grid.place(cx + 1, cy + 1, 'wind');   // 2x2 block beside intersection
+const placedWater = SR.grid.place(cx - 3, cy + 1, 'water'); // 2x2
+console.log('Placed wind/water:', placedWind, placedWater);
+// Zones — directly adjacent to roads so power/water reach them
+// Column road at x=cx; zones flank at cx-1 and cx+1 (rows away from buildings)
+for (let y = cy - 5; y <= cy - 1; y++) {
+  SR.grid.setZone(cx + 1, y, 'r');
+  SR.grid.setZone(cx - 1, y, 'c');
+}
+// Row road at y=cy; zones flank at cy-1 / cy+1 (cols away from buildings)
+for (let x = cx + 4; x <= cx + 6; x++) {
+  SR.grid.setZone(x, cy + 1, 'i');
+  SR.grid.setZone(x, cy - 1, 'i');
+}
+
+SR.sim.markDirty();
+
+// Diagnostic: count zones placed and their poweredBy/watered after first tick
+SR.sim.recomputeNetworks();
+let zR = 0, zRP = 0;
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const t = SR.grid.get(x, y);
+  if (t.zone === 'r') { zR++; if (t.poweredBy && t.watered) zRP++; }
+}
+console.log('Residential zones:', zR, 'with power+water:', zRP);
+
+for (let t = 0; t < 24; t++) SR.game.stepMonth();
+let postR = 0, postLvl = 0;
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const t = SR.grid.get(x, y);
+  if (t.zone === 'r') { postR++; postLvl += t.level; }
+}
+console.log('Post-tick R-zones:', postR, 'avg level:', (postLvl / Math.max(1, postR)).toFixed(2));
+console.log('Year:', SR.game.year, 'Pop:', SR.game.population, 'Jobs:', SR.game.jobs);
+console.log('Funds:', Math.round(SR.game.funds), 'Approval:', SR.game.approval);
+console.log('Power:', SR.game.power, 'Water:', SR.game.water);
+console.log('Demand:', SR.game.demand);
+
+if (SR.game.population <= 0) {
+  console.warn('WARNING: zero population after 24 months — investigate.');
+} else {
+  console.log('Population grew successfully ✓');
+}
+
+// Save/load round-trip
+const json = SR.save.exportJson();
+const ok = SR.save.importJson(json);
+console.log('Save/load round-trip:', ok ? 'OK' : 'FAIL');
+console.log('Smoke test PASS');

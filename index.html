@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover" />
+<meta name="theme-color" content="#0a0a0a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="description" content="SimRodman — a cyberpunk city builder. SimCity 2000 style, neon orange and black, playable on desktop or mobile." />
+<title>SimRodman // Neo-Rodman City</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-inner">
+    <div class="boot-logo">SIM<span>RODMAN</span></div>
+    <div class="boot-sub">// NEO-RODMAN CITY MUNICIPAL OS  v2.077</div>
+    <pre id="boot-log"></pre>
+    <button id="boot-start" class="primary-btn">JACK IN</button>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+
+  <header id="topbar">
+    <div class="brand">SIM<span>RODMAN</span></div>
+    <div class="stats">
+      <div class="stat" title="Date"><span class="lbl">DATE</span><span id="stat-date">—</span></div>
+      <div class="stat" title="Credits"><span class="lbl">₡</span><span id="stat-funds">0</span></div>
+      <div class="stat" title="Population"><span class="lbl">POP</span><span id="stat-pop">0</span></div>
+      <div class="stat" title="Approval"><span class="lbl">APR</span><span id="stat-approval">50%</span></div>
+      <div class="stat hide-sm" title="Tax rate"><span class="lbl">TAX</span><span id="stat-tax">9%</span></div>
+    </div>
+    <div class="speed">
+      <button data-speed="0" title="Pause" class="spd">II</button>
+      <button data-speed="1" title="Slow" class="spd active">&#9658;</button>
+      <button data-speed="2" title="Fast" class="spd">&#9658;&#9658;</button>
+      <button data-speed="3" title="Ultra" class="spd">&#9658;&#9658;&#9658;</button>
+    </div>
+    <button id="menu-btn" class="icon-btn" title="Menu">&#9776;</button>
+  </header>
+
+  <aside id="toolbar" class="toolbar">
+    <div class="tool-group">
+      <button class="tool" data-tool="select" title="Inspect">
+        <span class="tg">⌖</span><span class="tn">Inspect</span>
+      </button>
+      <button class="tool" data-tool="bulldoze" title="Bulldoze (B)">
+        <span class="tg">✕</span><span class="tn">Demolish</span>
+      </button>
+    </div>
+    <div class="tool-group">
+      <button class="tool" data-tool="road" title="Road (R)">
+        <span class="tg">≡</span><span class="tn">Road</span>
+      </button>
+      <button class="tool" data-tool="highway" title="Neon Highway">
+        <span class="tg">≣</span><span class="tn">Highway</span>
+      </button>
+      <button class="tool" data-tool="power" title="Power Line (P)">
+        <span class="tg">⚡</span><span class="tn">Power</span>
+      </button>
+      <button class="tool" data-tool="pipe" title="Water Pipe">
+        <span class="tg">≈</span><span class="tn">Water</span>
+      </button>
+    </div>
+    <div class="tool-group">
+      <button class="tool" data-tool="zone_r" title="Residential Zone">
+        <span class="tg" style="color:#3aff7a">R</span><span class="tn">Resi</span>
+      </button>
+      <button class="tool" data-tool="zone_c" title="Commercial Zone">
+        <span class="tg" style="color:#3ad7ff">C</span><span class="tn">Comm</span>
+      </button>
+      <button class="tool" data-tool="zone_i" title="Industrial Zone">
+        <span class="tg" style="color:#ffd23a">I</span><span class="tn">Indu</span>
+      </button>
+    </div>
+    <div class="tool-group">
+      <button class="tool" data-tool="build_police" title="Police HQ">
+        <span class="tg">✦</span><span class="tn">Police</span>
+      </button>
+      <button class="tool" data-tool="build_fire" title="Fire Dept.">
+        <span class="tg">▲</span><span class="tn">Fire</span>
+      </button>
+      <button class="tool" data-tool="build_hospital" title="Cyberclinic">
+        <span class="tg">+</span><span class="tn">Clinic</span>
+      </button>
+      <button class="tool" data-tool="build_school" title="Datanet School">
+        <span class="tg">◇</span><span class="tn">School</span>
+      </button>
+      <button class="tool" data-tool="build_park" title="Holopark">
+        <span class="tg">❋</span><span class="tn">Park</span>
+      </button>
+    </div>
+    <div class="tool-group">
+      <button class="tool" data-tool="build_coal" title="Coal Plant">
+        <span class="tg">▮</span><span class="tn">Coal</span>
+      </button>
+      <button class="tool" data-tool="build_solar" title="Solar Array">
+        <span class="tg">☀</span><span class="tn">Solar</span>
+      </button>
+      <button class="tool" data-tool="build_wind" title="Wind Farm">
+        <span class="tg">⌬</span><span class="tn">Wind</span>
+      </button>
+      <button class="tool" data-tool="build_fusion" title="Fusion Reactor">
+        <span class="tg">◉</span><span class="tn">Fusion</span>
+      </button>
+      <button class="tool" data-tool="build_water" title="Water Pump">
+        <span class="tg">⊙</span><span class="tn">Pump</span>
+      </button>
+    </div>
+    <div class="tool-group">
+      <button class="tool" data-tool="build_arcology" title="Arcology (Megastructure)">
+        <span class="tg">▣</span><span class="tn">Arco</span>
+      </button>
+      <button class="tool" data-tool="build_megacorp" title="Megacorp Tower">
+        <span class="tg">⌘</span><span class="tn">Mega</span>
+      </button>
+      <button class="tool" data-tool="build_plaza" title="Rodman Plaza (Landmark)">
+        <span class="tg">★</span><span class="tn">Plaza</span>
+      </button>
+    </div>
+  </aside>
+
+  <main id="viewport-wrap">
+    <canvas id="game"></canvas>
+    <canvas id="overlay"></canvas>
+
+    <div id="cursor-info" class="hud-chip"></div>
+
+    <div id="alerts"></div>
+
+    <div id="minimap-wrap">
+      <canvas id="minimap" width="128" height="128"></canvas>
+      <div id="minimap-modes">
+        <button class="mm" data-mode="terrain" title="Terrain">T</button>
+        <button class="mm" data-mode="zones" title="Zones">Z</button>
+        <button class="mm" data-mode="power" title="Power">⚡</button>
+        <button class="mm" data-mode="crime" title="Crime">C</button>
+        <button class="mm" data-mode="pollution" title="Pollution">P</button>
+        <button class="mm" data-mode="value" title="Land Value">$</button>
+      </div>
+    </div>
+
+    <div id="rci-wrap">
+      <div class="rci-bar"><span class="rci-lbl">R</span><div class="rci-track"><div class="rci-fill" id="rci-r"></div></div></div>
+      <div class="rci-bar"><span class="rci-lbl">C</span><div class="rci-track"><div class="rci-fill" id="rci-c"></div></div></div>
+      <div class="rci-bar"><span class="rci-lbl">I</span><div class="rci-track"><div class="rci-fill" id="rci-i"></div></div></div>
+    </div>
+
+    <div id="ticker"><div id="ticker-inner">> Welcome to Neo-Rodman City. Build something the megacorps can't ignore.</div></div>
+  </main>
+
+  <aside id="info-panel" class="panel hidden">
+    <div class="panel-head">
+      <span id="info-title">Tile</span>
+      <button class="close-btn" data-close="info-panel">×</button>
+    </div>
+    <div id="info-body"></div>
+  </aside>
+
+  <div id="menu-panel" class="panel right hidden">
+    <div class="panel-head">
+      <span>MUNICIPAL TERMINAL</span>
+      <button class="close-btn" data-close="menu-panel">×</button>
+    </div>
+    <div class="panel-body">
+      <button class="row-btn" data-action="budget">Budget &amp; Taxes</button>
+      <button class="row-btn" data-action="charts">Charts &amp; Stats</button>
+      <button class="row-btn" data-action="news">News Feed</button>
+      <button class="row-btn" data-action="ordinances">Ordinances</button>
+      <button class="row-btn" data-action="save">Save</button>
+      <button class="row-btn" data-action="load">Load</button>
+      <button class="row-btn" data-action="export">Export Save (JSON)</button>
+      <button class="row-btn" data-action="import">Import Save (JSON)</button>
+      <button class="row-btn" data-action="newcity">New City…</button>
+      <button class="row-btn" data-action="audio">Sound: <span id="audio-state">ON</span></button>
+      <button class="row-btn" data-action="help">How To Play</button>
+    </div>
+  </div>
+
+  <div id="modal-wrap" class="hidden">
+    <div id="modal" class="panel">
+      <div class="panel-head">
+        <span id="modal-title">—</span>
+        <button class="close-btn" id="modal-close">×</button>
+      </div>
+      <div id="modal-body" class="panel-body"></div>
+    </div>
+  </div>
+
+  <div id="scanlines" aria-hidden="true"></div>
+  <div id="vignette" aria-hidden="true"></div>
+
+</div>
+
+<script src="js/utils.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/buildings.js"></script>
+<script src="js/grid.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/minimap.js"></script>
+<script src="js/input.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/simulation.js"></script>
+<script src="js/disasters.js"></script>
+<script src="js/save.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>
