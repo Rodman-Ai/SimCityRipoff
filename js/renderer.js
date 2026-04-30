@@ -255,59 +255,66 @@ SR.renderer = (() => {
     }
   }
 
-  // Animated traffic dots moving along road tiles. Slot count scales with
+  // Animated traffic dots moving along road lanes. Slot count scales with
   // adjacent zone density to suggest busier streets.
+  // Lanes follow the iso edge axes: NW↔SE (between mNW and mSE midpoints) and
+  // NE↔SW (between mNE and mSW midpoints).
   function drawTraffic(sx, sy, hw, hh, t, x, y) {
-    const left = SR.grid.get(x, y - 1);
-    const right = SR.grid.get(x, y + 1);
-    const up = SR.grid.get(x - 1, y);
-    const down = SR.grid.get(x + 1, y);
-    const horiz = (left && left.road) || (right && right.road);
-    const vert = (up && up.road) || (down && down.road);
-    if (!horiz && !vert) return;
+    const nw = SR.grid.get(x - 1, y);
+    const se = SR.grid.get(x + 1, y);
+    const ne = SR.grid.get(x, y - 1);
+    const sw = SR.grid.get(x, y + 1);
+    const cNW = nw && nw.road;
+    const cSE = se && se.road;
+    const cNE = ne && ne.road;
+    const cSW = sw && sw.road;
+    const axisA = cNW || cSE;     // NW↔SE lane
+    const axisB = cNE || cSW;     // NE↔SW lane
+    if (!axisA && !axisB) return;
 
-    // Density: count adjacent built-up zones to scale traffic
     let density = 1;
-    for (const n of [left, right, up, down]) {
+    for (const n of [nw, se, ne, sw]) {
       if (n && n.zone && n.level > 0) density += n.level;
     }
     const speed = (t.road === 2 ? 0.012 : 0.008);
     const car = t.road === 2 ? '#ffd23a' : '#ff8a1f';
 
-    // E/W diamond axis: from (sx-hw, sy) to (sx+hw, sy)
-    if (horiz) {
+    const mNW = { x: sx - hw / 2, y: sy - hh / 2 };
+    const mNE = { x: sx + hw / 2, y: sy - hh / 2 };
+    const mSE = { x: sx + hw / 2, y: sy + hh / 2 };
+    const mSW = { x: sx - hw / 2, y: sy + hh / 2 };
+
+    function travelDot(a, b, tt) {
+      const px = a.x + (b.x - a.x) * tt;
+      const py = a.y + (b.y - a.y) * tt;
+      ctx.fillStyle = car;
+      ctx.fillRect((px | 0) - 1, (py | 0) - 1, 2, 2);
+    }
+
+    // NW↔SE lane (two parallel sub-lanes for opposing traffic)
+    if (axisA) {
+      const a = cNW ? mNW : { x: sx, y: sy };
+      const b = cSE ? mSE : { x: sx, y: sy };
+      // perpendicular offset for the two sub-lanes
+      const pxoff = (mSE.y - mNW.y) === 0 ? 0 : 0; // we just shift on screen-y for lane separation
       const slots = Math.min(3, density);
       for (let i = 0; i < slots; i++) {
         const tt = ((frame * speed) + (x * 0.13 + y * 0.07) + i / slots) % 1;
-        const px = sx - hw + tt * (2 * hw);
-        const py = sy - hh * 0.18;
-        ctx.fillStyle = car;
-        ctx.fillRect(px - 1, py - 1, 2, 2);
-      }
-      // opposite lane (different direction)
-      for (let i = 0; i < slots; i++) {
-        const tt = (1 - (((frame * speed) + (x * 0.27 + y * 0.21) + i / slots) % 1));
-        const px = sx - hw + tt * (2 * hw);
-        const py = sy + hh * 0.18;
-        ctx.fillStyle = car;
-        ctx.fillRect(px - 1, py - 1, 2, 2);
+        travelDot({ x: a.x, y: a.y - 2 }, { x: b.x, y: b.y - 2 }, tt);
+        const tt2 = 1 - (((frame * speed) + (x * 0.27 + y * 0.21) + i / slots) % 1);
+        travelDot({ x: a.x, y: a.y + 2 }, { x: b.x, y: b.y + 2 }, tt2);
       }
     }
-    if (vert) {
+    // NE↔SW lane
+    if (axisB) {
+      const a = cNE ? mNE : { x: sx, y: sy };
+      const b = cSW ? mSW : { x: sx, y: sy };
       const slots = Math.min(3, density);
       for (let i = 0; i < slots; i++) {
         const tt = ((frame * speed) + (x * 0.41 + y * 0.11) + i / slots) % 1;
-        const px = sx - hw * 0.18;
-        const py = sy - hh + tt * (2 * hh);
-        ctx.fillStyle = car;
-        ctx.fillRect(px - 1, py - 1, 2, 2);
-      }
-      for (let i = 0; i < slots; i++) {
-        const tt = (1 - (((frame * speed) + (x * 0.19 + y * 0.37) + i / slots) % 1));
-        const px = sx + hw * 0.18;
-        const py = sy - hh + tt * (2 * hh);
-        ctx.fillStyle = car;
-        ctx.fillRect(px - 1, py - 1, 2, 2);
+        travelDot({ x: a.x - 2, y: a.y }, { x: b.x - 2, y: b.y }, tt);
+        const tt2 = 1 - (((frame * speed) + (x * 0.19 + y * 0.37) + i / slots) % 1);
+        travelDot({ x: a.x + 2, y: a.y }, { x: b.x + 2, y: b.y }, tt2);
       }
     }
   }
@@ -332,23 +339,38 @@ SR.renderer = (() => {
   }
 
   function drawRoad(sx, sy, hw, hh, t, x, y) {
-    // Connect to neighbours
-    const left = SR.grid.get(x, y - 1);
-    const right = SR.grid.get(x, y + 1);
-    const up = SR.grid.get(x - 1, y);
-    const down = SR.grid.get(x + 1, y);
+    // 4-cardinal neighbours in tile space line up with the four EDGES of the
+    // iso diamond (not its compass corners): (x-1,y) shares the NW edge,
+    // (x,y-1) the NE edge, (x+1,y) the SE edge, (x,y+1) the SW edge.
+    const nw = SR.grid.get(x - 1, y);
+    const se = SR.grid.get(x + 1, y);
+    const ne = SR.grid.get(x, y - 1);
+    const sw = SR.grid.get(x, y + 1);
     const isHigh = t.road === 2;
-    const conLeft = left && left.road;
-    const conRight = right && right.road;
-    const conUp = up && up.road;
-    const conDown = down && down.road;
+    const cNW = nw && nw.road;
+    const cSE = se && se.road;
+    const cNE = ne && ne.road;
+    const cSW = sw && sw.road;
 
-    // Asphalt diamond
-    ctx.fillStyle = isHigh ? '#0a0a0a' : '#0d0d0e';
+    // Asphalt diamond — visibly grey-warm so it reads as pavement on the
+    // dark map instead of disappearing into the background.
+    ctx.fillStyle = isHigh ? '#211712' : '#1a1310';
     diamondPath(sx, sy, hw, hh);
     ctx.fill();
 
-    // Lane stripe color
+    // Edge midpoints — these are where the lane meets each tile boundary.
+    const mNW = { x: sx - hw / 2, y: sy - hh / 2 };
+    const mNE = { x: sx + hw / 2, y: sy - hh / 2 };
+    const mSE = { x: sx + hw / 2, y: sy + hh / 2 };
+    const mSW = { x: sx - hw / 2, y: sy + hh / 2 };
+
+    // Asphalt edge stripe (the kerb) — a darker outline of the diamond
+    ctx.strokeStyle = isHigh ? '#0a0805' : '#0e0a06';
+    ctx.lineWidth = 1;
+    diamondPath(sx, sy, hw, hh);
+    ctx.stroke();
+
+    // Lane stripe — neon, with shadow glow.
     const stripe = isHigh ? '#ffaa1f' : '#ff6a00';
     ctx.strokeStyle = stripe;
     ctx.lineWidth = isHigh ? 2 : 1;
@@ -356,16 +378,43 @@ SR.renderer = (() => {
     ctx.shadowBlur = isHigh ? 10 : 5;
 
     ctx.beginPath();
-    if (conLeft || conRight || (!conLeft && !conRight && !conUp && !conDown)) {
-      // axis 1: from left-corner to right-corner of diamond
-      ctx.moveTo(sx - hw * (conLeft ? 1 : 0.45), sy - (conLeft ? 0 : hh * 0.0));
-      ctx.lineTo(sx + hw * (conRight ? 1 : 0.45), sy);
+    // NW↔SE lane: prefer a straight pass-through if both neighbors are roads;
+    // otherwise draw a stub from the centre to whichever side connects.
+    if (cNW && cSE) {
+      ctx.moveTo(mNW.x, mNW.y); ctx.lineTo(mSE.x, mSE.y);
+    } else {
+      if (cNW) { ctx.moveTo(sx, sy); ctx.lineTo(mNW.x, mNW.y); }
+      if (cSE) { ctx.moveTo(sx, sy); ctx.lineTo(mSE.x, mSE.y); }
     }
-    if (conUp || conDown) {
-      ctx.moveTo(sx - (conUp ? 0 : 0), sy - hh * (conUp ? 1 : 0.45));
-      ctx.lineTo(sx, sy + hh * (conDown ? 1 : 0.45));
+    // NE↔SW lane.
+    if (cNE && cSW) {
+      ctx.moveTo(mNE.x, mNE.y); ctx.lineTo(mSW.x, mSW.y);
+    } else {
+      if (cNE) { ctx.moveTo(sx, sy); ctx.lineTo(mNE.x, mNE.y); }
+      if (cSW) { ctx.moveTo(sx, sy); ctx.lineTo(mSW.x, mSW.y); }
+    }
+    // Isolated road tile — show a small dash so the player can see it.
+    if (!cNW && !cNE && !cSE && !cSW) {
+      ctx.moveTo(sx - hw * 0.3, sy);
+      ctx.lineTo(sx + hw * 0.3, sy);
     }
     ctx.stroke();
+    // Highway: paint a second, thinner inner stripe for the divided look
+    if (isHigh) {
+      ctx.strokeStyle = '#ffe8a0';
+      ctx.lineWidth = 1;
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      if (cNW && cSE) {
+        ctx.moveTo(mNW.x + (mSE.x - mNW.x) * 0.15, mNW.y + (mSE.y - mNW.y) * 0.15);
+        ctx.lineTo(mNW.x + (mSE.x - mNW.x) * 0.85, mNW.y + (mSE.y - mNW.y) * 0.85);
+      }
+      if (cNE && cSW) {
+        ctx.moveTo(mNE.x + (mSW.x - mNE.x) * 0.15, mNE.y + (mSW.y - mNE.y) * 0.15);
+        ctx.lineTo(mNE.x + (mSW.x - mNE.x) * 0.85, mNE.y + (mSW.y - mNE.y) * 0.85);
+      }
+      ctx.stroke();
+    }
     ctx.shadowBlur = 0;
   }
 
@@ -398,34 +447,47 @@ SR.renderer = (() => {
   }
 
   function drawMaglev(sx, sy, hw, hh, x, y) {
-    // Magenta neon line connecting to maglev neighbors with a moving glow pulse.
-    const u = SR.grid.get(x - 1, y);
-    const d = SR.grid.get(x + 1, y);
-    const l = SR.grid.get(x, y - 1);
-    const r = SR.grid.get(x, y + 1);
+    // Magenta neon tube routed along iso edge midpoints (matches roads).
+    const nw = SR.grid.get(x - 1, y);
+    const se = SR.grid.get(x + 1, y);
+    const ne = SR.grid.get(x, y - 1);
+    const sw = SR.grid.get(x, y + 1);
+    const cNW = nw && nw.maglev;
+    const cSE = se && se.maglev;
+    const cNE = ne && ne.maglev;
+    const cSW = sw && sw.maglev;
+
+    const mNW = { x: sx - hw / 2, y: sy - hh / 2 };
+    const mNE = { x: sx + hw / 2, y: sy - hh / 2 };
+    const mSE = { x: sx + hw / 2, y: sy + hh / 2 };
+    const mSW = { x: sx - hw / 2, y: sy + hh / 2 };
+
     ctx.strokeStyle = '#ff2acc';
     ctx.shadowColor = '#ff2acc';
     ctx.shadowBlur = 6;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    if ((l && l.maglev) || (r && r.maglev)) {
-      ctx.moveTo(sx - hw * 0.7, sy);
-      ctx.lineTo(sx + hw * 0.7, sy);
-    }
-    if ((u && u.maglev) || (d && d.maglev)) {
-      ctx.moveTo(sx, sy - hh * 0.7);
-      ctx.lineTo(sx, sy + hh * 0.7);
-    }
-    if (!(l && l.maglev) && !(r && r.maglev) && !(u && u.maglev) && !(d && d.maglev)) {
-      // isolated tile — draw a small node
+    if (cNW && cSE) { ctx.moveTo(mNW.x, mNW.y); ctx.lineTo(mSE.x, mSE.y); }
+    else { if (cNW) { ctx.moveTo(sx, sy); ctx.lineTo(mNW.x, mNW.y); }
+           if (cSE) { ctx.moveTo(sx, sy); ctx.lineTo(mSE.x, mSE.y); } }
+    if (cNE && cSW) { ctx.moveTo(mNE.x, mNE.y); ctx.lineTo(mSW.x, mSW.y); }
+    else { if (cNE) { ctx.moveTo(sx, sy); ctx.lineTo(mNE.x, mNE.y); }
+           if (cSW) { ctx.moveTo(sx, sy); ctx.lineTo(mSW.x, mSW.y); } }
+    if (!cNW && !cNE && !cSE && !cSW) {
       ctx.arc(sx, sy, 3, 0, Math.PI * 2);
     }
     ctx.stroke();
     ctx.shadowBlur = 0;
-    // pulse dot
-    const pulse = ((frame + x * 5 + y * 3) % 60) / 60;
+
+    // Pulse along the dominant axis of this tile
+    const phase = ((frame + x * 5 + y * 3) % 60) / 60;
+    let a, b;
+    if (cNW || cSE) { a = cNW ? mNW : { x: sx, y: sy }; b = cSE ? mSE : { x: sx, y: sy }; }
+    else            { a = cNE ? mNE : { x: sx, y: sy }; b = cSW ? mSW : { x: sx, y: sy }; }
+    const px = a.x + (b.x - a.x) * phase;
+    const py = a.y + (b.y - a.y) * phase;
     ctx.fillStyle = '#ffaadc';
-    ctx.fillRect((sx - hw * 0.6 + hw * 1.2 * pulse) | 0, (sy | 0) - 1, 2, 2);
+    ctx.fillRect((px | 0) - 1, (py | 0) - 1, 2, 2);
   }
 
   function _animScale(t) {
