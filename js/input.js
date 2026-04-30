@@ -74,6 +74,7 @@ SR.input = (() => {
       dragMode = 'paint';
       dragging = true;
       lastTileX = cursor.x; lastTileY = cursor.y;
+      SR.tools.beginAction();
       SR.tools.applyAt(cursor.x, cursor.y);
     }
   }
@@ -92,7 +93,10 @@ SR.input = (() => {
       }
     }
   }
-  function onMouseUp() { dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1; }
+  function onMouseUp() {
+    if (dragMode === 'paint') SR.tools.endAction();
+    dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1;
+  }
 
   function onWheel(e) {
     e.preventDefault();
@@ -117,6 +121,7 @@ SR.input = (() => {
       } else {
         dragMode = 'paint';
         lastTileX = cursor.x; lastTileY = cursor.y;
+        SR.tools.beginAction();
         SR.tools.applyAt(cursor.x, cursor.y);
       }
       lastTap = now;
@@ -162,7 +167,10 @@ SR.input = (() => {
     }
   }
   function onTouchEnd(e) {
-    if (e.touches.length === 0) { dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1; }
+    if (e.touches.length === 0) {
+      if (dragMode === 'paint') SR.tools.endAction();
+      dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1;
+    }
     else if (e.touches.length === 1 && dragMode === 'pinch') {
       // continue as single-finger pan
       dragMode = 'pan';
@@ -173,7 +181,7 @@ SR.input = (() => {
 
   // ---- Keyboard ----
   const keymap = {
-    'b': 'bulldoze', 'r': 'road', 'h': 'highway', 'p': 'power', 'w': 'pipe',
+    'b': 'bulldoze', 'r': 'road', 'h': 'highway', 'p': 'power', 'w': 'pipe', 'm': 'maglev',
     '1': 'zone_r', '2': 'zone_c', '3': 'zone_i',
     '4': 'build_police', '5': 'build_fire', '6': 'build_hospital',
     '7': 'build_school', '8': 'build_park',
@@ -193,6 +201,7 @@ SR.input = (() => {
       case 'arrowleft': SR.camera.pan(60, 0); break;
       case 'arrowright': SR.camera.pan(-60, 0); break;
       case 's': if (e.ctrlKey || e.metaKey) { e.preventDefault(); SR.save.save(); SR.ui.alert('CITY SAVED', 'good'); } break;
+      case 'z': if (e.ctrlKey || e.metaKey) { e.preventDefault(); SR.tools.undo(); } break;
     }
   }
 

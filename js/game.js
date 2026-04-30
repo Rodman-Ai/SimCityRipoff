@@ -79,6 +79,8 @@ SR.game = (() => {
     SR.camera.center(center.x, center.y);
     SR.sim.markDirty();
     SR.ui.markStatsDirty();
+    if (SR.tools && SR.tools.clearUndo) SR.tools.clearUndo();
+    if (SR.renderer && SR.renderer.clearParticles) SR.renderer.clearParticles();
   }
 
   // Drop a small starter kit on the map: cross-shaped roads, a wind farm,

@@ -25,6 +25,9 @@ SR.ui = (() => {
       const p = document.getElementById('menu-panel');
       p.classList.toggle('hidden');
     });
+    document.getElementById('undo-btn').addEventListener('click', () => {
+      SR.tools.undo();
+    });
     document.querySelectorAll('[data-close]').forEach(b => {
       b.addEventListener('click', () => {
         document.getElementById(b.dataset.close).classList.add('hidden');
@@ -104,6 +107,21 @@ SR.ui = (() => {
     wrap.appendChild(el);
     setTimeout(() => { el.style.opacity = 0; }, 2200);
     setTimeout(() => { el.remove(); }, 2800);
+  }
+
+  function advisor(msg, sev) {
+    // Replace any existing advisor toast instead of stacking
+    const wrap = document.getElementById('alerts');
+    const old = wrap.querySelector('.alert.advisor');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.className = 'alert advisor ' + (sev || '');
+    el.innerHTML = '<div style="font-size:11px;letter-spacing:2px;color:#ffaa1f">★ ADVISOR</div>'
+      + '<div style="font-size:14px">' + msg + '</div>';
+    wrap.appendChild(el);
+    setTimeout(() => { el.style.opacity = 0; }, 7000);
+    setTimeout(() => { el.remove(); }, 7800);
+    pushTicker('ADVISOR :: ' + msg);
   }
 
   function unlockAchievement(a) {
@@ -482,7 +500,7 @@ SR.ui = (() => {
     init,
     markStatsDirty,
     updateStats,
-    alert, pushTicker, unlockAchievement,
+    alert, pushTicker, unlockAchievement, advisor,
     showTileInfo,
     updateCursorChip,
     openModal, closeModal,

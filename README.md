@@ -89,6 +89,24 @@ Open `http://localhost:8000` and click **JACK IN**.
   from the menu.
 - **Ambient cyberpunk music** — synthesized drone pad + arpeggio loop with
   a sweeping low-pass filter. Toggle from the menu.
+- **Particle system** — coal stack smoke, fusion magenta plume, water-pump
+  steam; floating "+₡" tax pop-ups on payday; police / fire / clinic
+  vehicles dispatching on a service tour each tick.
+- **Construction pop-in animation** — buildings and zone level-ups scale
+  up with an ease-out-back overshoot.
+- **Lightning + thunder** — disasters trigger a triple-flash overlay tinted
+  per disaster (magenta cyber-attack, acid green, etc.) and a boom SFX.
+- **Maglev tube** — new neon transit tile (`M`). Costs ₡25/tile, carries
+  power and water, counts as road for zone fitness, drawn as a glowing
+  magenta line with a moving pulse.
+- **Working ordinances** — Neon Curfew cuts crime 35%, Air Filtration cuts
+  pollution 25%, Cyberware Subsidy boosts R demand, Megacorp Tax Holiday
+  boosts I demand. Filtration/subsidy/holiday charge a monthly fee.
+- **Undo last action** — `Ctrl/Cmd+Z` or the topbar `↶` button reverts the
+  last drag session (up to 30 history slots).
+- **City advisor** — periodic state-aware tip toasts (power shortage, high
+  crime, available landmark unlocks, etc.).
+- **Population density minimap mode** — new `D` button on the mini-map.
 - **No build step, no dependencies** — pure HTML, CSS, and vanilla JS. Open
   the file, play the game.
 
@@ -105,7 +123,9 @@ Open `http://localhost:8000` and click **JACK IN**.
 | Demolish          | `B`                                         |
 | Road / Highway    | `R` / `H`                                   |
 | Power / Water     | `P` / `W`                                   |
+| Maglev tube       | `M`                                         |
 | R / C / I zones   | `1` / `2` / `3`                             |
+| Undo              | `Ctrl/Cmd + Z`                              |
 | Police / Fire / Hospital / School / Park | `4` / `5` / `6` / `7` / `8` |
 | Solar / Wind      | `9` / `0`                                   |
 | Move camera       | Arrow keys                                  |

@@ -36,7 +36,7 @@ SR.grid = (() => {
   function newTile() {
     return {
       z: 0, t: 'ground',
-      road: 0, power: false, pipe: false,
+      road: 0, power: false, pipe: false, maglev: false,
       poweredBy: false, watered: false,
       zone: null, building: null, bx: 0, by: 0,
       level: 0, pop: 0, jobs: 0,
@@ -113,7 +113,7 @@ SR.grid = (() => {
   }
 
   function clear(t) {
-    t.road = 0; t.power = false; t.pipe = false;
+    t.road = 0; t.power = false; t.pipe = false; t.maglev = false;
     t.zone = null; t.building = null;
     t.level = 0; t.pop = 0; t.jobs = 0;
     t.bx = 0; t.by = 0; t.onFire = 0;
@@ -137,11 +137,20 @@ SR.grid = (() => {
       }
       return true;
     }
-    if (t.road || t.power || t.pipe || t.zone) {
+    if (t.road || t.power || t.pipe || t.maglev || t.zone) {
       clear(t);
       return true;
     }
     return false;
+  }
+
+  function setMaglev(x, y) {
+    const t = get(x, y);
+    if (!t || t.t !== 'ground') return false;
+    if (t.building) return false;
+    t.maglev = true;
+    t.zone = null;
+    return true;
   }
 
   // Place a building footprint. Returns true on success.
@@ -184,6 +193,9 @@ SR.grid = (() => {
         if (def.water > 0) t.pipe = true;
       }
     }
+    // Construction pop-in animation marker on the top-left tile only
+    const head = get(x, y);
+    if (head) head._anim = { from: performance.now(), dur: 600 };
     return true;
   }
 
@@ -229,7 +241,7 @@ SR.grid = (() => {
 
   return {
     init, get, idx, inBounds, demolish, place,
-    setRoad, setPower, setPipe, setZone,
+    setRoad, setPower, setPipe, setMaglev, setZone,
     size, snapshot,
     get tiles() { return tiles; },
     set tiles(v) { tiles = v; W = SR.GRID_W; H = SR.GRID_H; },

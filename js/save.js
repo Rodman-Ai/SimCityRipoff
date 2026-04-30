@@ -26,6 +26,7 @@ SR.save = (() => {
       },
       tiles: SR.grid.tiles.map(t => ({
         z: t.z, t: t.t, road: t.road, power: t.power ? 1 : 0, pipe: t.pipe ? 1 : 0,
+        maglev: t.maglev ? 1 : 0,
         zone: t.zone, building: t.building, bx: t.bx, by: t.by, level: t.level,
         pop: t.pop, jobs: t.jobs,
       })),
@@ -57,6 +58,7 @@ SR.save = (() => {
       t.z = s.z; t.t = s.t;
       t.road = s.road | 0;
       t.power = !!s.power; t.pipe = !!s.pipe;
+      t.maglev = !!s.maglev;
       t.zone = s.zone || null;
       t.building = s.building || null;
       t.bx = s.bx | 0; t.by = s.by | 0;

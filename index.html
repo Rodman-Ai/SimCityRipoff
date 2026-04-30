@@ -38,6 +38,7 @@
       <button data-speed="2" title="Fast" class="spd">&#9658;&#9658;</button>
       <button data-speed="3" title="Ultra" class="spd">&#9658;&#9658;&#9658;</button>
     </div>
+    <button id="undo-btn" class="icon-btn" title="Undo (Ctrl+Z)">&#x21B6;</button>
     <button id="menu-btn" class="icon-btn" title="Menu">&#9776;</button>
   </header>
 
@@ -62,6 +63,9 @@
       </button>
       <button class="tool" data-tool="pipe" title="Water Pipe">
         <span class="tg">≈</span><span class="tn">Water</span>
+      </button>
+      <button class="tool" data-tool="maglev" title="Maglev Tube (M)">
+        <span class="tg" style="color:#ff7adb">⌁</span><span class="tn">Maglev</span>
       </button>
     </div>
     <div class="tool-group">
@@ -139,6 +143,7 @@
         <button class="mm" data-mode="crime" title="Crime">C</button>
         <button class="mm" data-mode="pollution" title="Pollution">P</button>
         <button class="mm" data-mode="value" title="Land Value">$</button>
+        <button class="mm" data-mode="density" title="Density">D</button>
       </div>
     </div>
 
@@ -209,6 +214,7 @@
 <script src="js/simulation.js"></script>
 <script src="js/disasters.js"></script>
 <script src="js/save.js"></script>
+<script src="js/advisor.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 <script src="js/main.js"></script>

@@ -90,12 +90,31 @@ SR.disasters = (() => {
     },
   ];
 
+  // Per-disaster flash color + thunder pitch
+  const FX = {
+    cyber:    { color: 'rgba(255,40,180,0.7)', pitch: 220 },
+    acidrain: { color: 'rgba(180,255,80,0.7)', pitch: 130 },
+    riot:     { color: 'rgba(255,80,40,0.7)',  pitch: 180 },
+    fire:     { color: 'rgba(255,140,40,0.7)', pitch: 160 },
+    surge:    { color: 'rgba(255,255,180,0.7)', pitch: 320 },
+    drone:    { color: 'rgba(140,200,255,0.7)', pitch: 240 },
+    quake:    { color: 'rgba(255,255,255,0.7)', pitch: 90  },
+  };
+
   function trigger(key) {
     const d = list.find(x => x.key === key);
     if (!d) return;
     SR.audio.sfx.alert();
+    SR.audio.sfx.boom();
     SR.ui.alert(d.name, 'bad');
     SR.ui.pushTicker('!! ' + d.name + ' :: ' + d.msg);
+    const fx = FX[key];
+    if (fx && SR.renderer && SR.renderer.flashScreen) {
+      // Triple-flash like lightning
+      SR.renderer.flashScreen(120, fx.color);
+      setTimeout(() => SR.renderer && SR.renderer.flashScreen(80, fx.color), 180);
+      setTimeout(() => SR.renderer && SR.renderer.flashScreen(60, fx.color), 350);
+    }
     d.effect();
     SR.sim.markDirty();
   }

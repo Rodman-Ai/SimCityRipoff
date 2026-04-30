@@ -239,6 +239,9 @@ button:focus { outline: none; }
 .alert.bad { border-color: var(--red); color: #ff8a8a; box-shadow: 0 0 12px rgba(255,48,48,0.3); }
 .alert.good { border-color: var(--green); color: #b6ffd2; box-shadow: 0 0 12px rgba(58,255,122,0.25); }
 .alert.achv { border-color: var(--yellow); background: linear-gradient(180deg, rgba(40,20,4,0.95), rgba(20,10,2,0.95)); box-shadow: 0 0 18px rgba(255,210,58,0.5); padding: 8px 12px; }
+.alert.advisor { border-color: var(--orange); background: linear-gradient(180deg, rgba(30,14,4,0.95), rgba(15,8,2,0.95)); box-shadow: 0 0 14px rgba(255,170,31,0.4); padding: 8px 12px; }
+.alert.advisor.bad { border-color: var(--red); }
+.alert.advisor.good { border-color: var(--green); }
 @keyframes alert-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 #minimap-wrap {

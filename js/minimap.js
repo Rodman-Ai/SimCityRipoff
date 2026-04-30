@@ -65,6 +65,16 @@ SR.minimap = (() => {
           if (t.t === 'water') { r = 0; g = 0; b = 0; }
           else { r = 60 + t.land; g = 30 + t.land * 0.5; b = 10; }
           break;
+        case 'density':
+          if (t.t === 'water') { r = 0; g = 0; b = 0; }
+          else if (t.zone && t.pop) {
+            const k = SR.utils.clamp(t.pop * 4, 0, 240);
+            r = 50 + k; g = 30 + k * 0.6; b = 10;
+          } else if (t.zone && t.jobs) {
+            const k = SR.utils.clamp(t.jobs * 3, 0, 200);
+            r = 30 + k * 0.3; g = 60 + k * 0.6; b = 80 + k * 0.5;
+          } else { r = 18; g = 12; b = 8; }
+          break;
       }
       img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = a;
     }

@@ -6,12 +6,119 @@ SR.renderer = (() => {
   let dpr = 1;
   let frame = 0;
   let glitchUntil = 0;
+  let flashUntil = 0;
+  let flashColor = 'rgba(255,255,255,0.7)';
 
   // 0..1 — 0=full daylight, 1=deep night. Updated each frame from game.minute.
   let darkness = 0;
   // 0..1 — peak around dawn (0.25) and dusk (0.75)
   let dawnDusk = 0;
   function getDarkness() { return darkness; }
+
+  // ----- Particle system -----
+  // Particles are simple objects with a `kind` field; each kind has its own
+  // update + draw step. We keep them in a single ring-buffer-ish array.
+  const particles = [];
+  const MAX_PARTICLES = 240;
+
+  function addParticle(p) {
+    if (particles.length >= MAX_PARTICLES) particles.shift();
+    p.born = performance.now();
+    particles.push(p);
+  }
+
+  function spawnSmoke(tx, ty, opts) {
+    opts = opts || {};
+    addParticle({
+      kind: 'smoke', tx, ty,
+      ox: (Math.random() - 0.5) * 6,
+      oy: -8 - Math.random() * 6,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: -0.4 - Math.random() * 0.3,
+      life: 1800 + Math.random() * 1200,
+      size: 3 + Math.random() * 4,
+      color: opts.color || 'rgba(120,120,120,0.55)',
+    });
+  }
+
+  function spawnFloater(tx, ty, text, color) {
+    addParticle({
+      kind: 'floater', tx, ty,
+      ox: (Math.random() - 0.5) * 8,
+      oy: -16,
+      vy: -0.6,
+      life: 1600,
+      text, color: color || '#ffd23a',
+    });
+  }
+
+  function spawnVehicle(fromX, fromY, toX, toY, color) {
+    addParticle({
+      kind: 'vehicle',
+      fromX, fromY, toX, toY,
+      life: 2400 + Math.hypot(toX - fromX, toY - fromY) * 80,
+      color: color || '#3ad7ff',
+      blink: 0,
+    });
+  }
+
+  function flashScreen(ms, color) {
+    flashUntil = performance.now() + (ms || 200);
+    if (color) flashColor = color;
+  }
+
+  function clearParticles() { particles.length = 0; }
+
+  function drawParticles(now) {
+    const cam = SR.camera;
+    const zoom = cam.getZoom();
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      const age = now - p.born;
+      if (age > p.life) { particles.splice(i, 1); continue; }
+      const t = age / p.life;
+      const fade = 1 - t;
+      if (p.kind === 'smoke') {
+        p.ox += p.vx;
+        p.oy += p.vy;
+        const sc = cam.tileToScreen(p.tx, p.ty, 0);
+        ctx.globalAlpha = fade * 0.7;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(sc.sx + p.ox * zoom, sc.sy + p.oy * zoom, p.size * (1 + t * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (p.kind === 'floater') {
+        p.oy += p.vy;
+        p.vy *= 0.985;
+        const sc = cam.tileToScreen(p.tx, p.ty, 0);
+        ctx.globalAlpha = fade;
+        ctx.font = '12px ' + getComputedStyle(document.body).fontFamily;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.fillText(p.text, sc.sx + p.ox * zoom, sc.sy + p.oy * zoom);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      } else if (p.kind === 'vehicle') {
+        const u = SR.utils.clamp(t * 2, 0, 1); // forward leg in first half
+        const v = SR.utils.clamp((t - 0.5) * 2, 0, 1);
+        const lerp = (a, b, k) => a + (b - a) * k;
+        let cx, cy;
+        if (t < 0.5) { cx = lerp(p.fromX, p.toX, u); cy = lerp(p.fromY, p.toY, u); }
+        else         { cx = lerp(p.toX, p.fromX, v); cy = lerp(p.toY, p.fromY, v); }
+        const sc = cam.tileToScreen(cx, cy, 0);
+        ctx.fillStyle = ((frame >> 3) & 1) ? p.color : '#fff';
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 4;
+        ctx.fillRect((sc.sx | 0) - 1, (sc.sy | 0) - 1, 3, 3);
+        ctx.shadowBlur = 0;
+      }
+    }
+  }
+  // ----- end particles -----
 
   function init(c) {
     canvas = c;
@@ -290,6 +397,47 @@ SR.renderer = (() => {
     ctx.setLineDash([]);
   }
 
+  function drawMaglev(sx, sy, hw, hh, x, y) {
+    // Magenta neon line connecting to maglev neighbors with a moving glow pulse.
+    const u = SR.grid.get(x - 1, y);
+    const d = SR.grid.get(x + 1, y);
+    const l = SR.grid.get(x, y - 1);
+    const r = SR.grid.get(x, y + 1);
+    ctx.strokeStyle = '#ff2acc';
+    ctx.shadowColor = '#ff2acc';
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if ((l && l.maglev) || (r && r.maglev)) {
+      ctx.moveTo(sx - hw * 0.7, sy);
+      ctx.lineTo(sx + hw * 0.7, sy);
+    }
+    if ((u && u.maglev) || (d && d.maglev)) {
+      ctx.moveTo(sx, sy - hh * 0.7);
+      ctx.lineTo(sx, sy + hh * 0.7);
+    }
+    if (!(l && l.maglev) && !(r && r.maglev) && !(u && u.maglev) && !(d && d.maglev)) {
+      // isolated tile — draw a small node
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // pulse dot
+    const pulse = ((frame + x * 5 + y * 3) % 60) / 60;
+    ctx.fillStyle = '#ffaadc';
+    ctx.fillRect((sx - hw * 0.6 + hw * 1.2 * pulse) | 0, (sy | 0) - 1, 2, 2);
+  }
+
+  function _animScale(t) {
+    if (!t._anim) return 1;
+    const elapsed = performance.now() - t._anim.from;
+    if (elapsed >= t._anim.dur) { t._anim = null; return 1; }
+    const k = elapsed / t._anim.dur;
+    // easeOutBack-ish: overshoots slightly past 1 then settles
+    const s = 1.7;
+    return 1 + ((k - 1) * (k - 1) * ((s + 1) * (k - 1) + s));
+  }
+
   function drawZoneBuilding(sx, sy, hw, hh, t, x, y) {
     const v = SR.ZONE_VIS[t.zone];
     if (!v) return;
@@ -300,10 +448,11 @@ SR.renderer = (() => {
     const footMul = 0.55 + (((h32 >>> 8) & 0xff) / 255) * 0.30;  // 0.55..0.85
     const wPat = ((h32 >>> 16) & 7);                              // 0..7
     const tint = ((h32 >>> 19) & 0xf) / 15 - 0.5;                // -0.5..0.5
-    const h = (8 + lvl * 14) * SR.camera.getZoom() * heightMul;
+    const animK = _animScale(t);
+    const h = (8 + lvl * 14) * SR.camera.getZoom() * heightMul * animK;
     const body = shade(v.tint[lvl] || v.tint[3], tint * 0.06);
-    const bw = hw * footMul;
-    const bh = hh * footMul;
+    const bw = hw * footMul * animK;
+    const bh = hh * footMul * animK;
     // top
     ctx.fillStyle = shade(body, 0.05);
     ctx.beginPath();
@@ -395,14 +544,15 @@ SR.renderer = (() => {
       return;
     }
     const sz = def.size;
+    const animK = _animScale(t);
     // height by category and size
-    let h = (8 + sz * 12) * SR.camera.getZoom();
+    let h = (8 + sz * 12) * SR.camera.getZoom() * animK;
     if (def.category === 'landmark') h *= 2.4;
     if (def.category === 'power') h *= 1.5;
 
     // For multi-tile, expand the diamond footprint
-    const bw = hw * sz * 0.92;
-    const bh = hh * sz * 0.92;
+    const bw = hw * sz * 0.92 * animK;
+    const bh = hh * sz * 0.92 * animK;
     // Footprint center in iso: same x as top-left, but shifted down by (sz-1)*hh
     const cx = sx;
     const cy = sy + (sz - 1) * hh;
@@ -467,14 +617,7 @@ SR.renderer = (() => {
     ctx.textBaseline = 'middle';
     ctx.fillText(def.glyph, cx, cy - h * 0.5);
 
-    // Smoke for coal
-    if (t.building === 'coal' && (frame & 3) === 0) {
-      // ephemeral particle in overlay (drawn here for simplicity)
-      ctx.fillStyle = 'rgba(120,120,120,0.4)';
-      const px = cx + (Math.sin(frame * 0.1) * 4);
-      const py = cy - h - 14 - (frame % 30);
-      ctx.fillRect(px, py, 4, 4);
-    }
+    // (Coal/fusion smoke now produced by the particle system.)
   }
 
   // Hack-ish: pass current grid coord into drawSpecialBuilding via closure-friendly object
@@ -594,6 +737,7 @@ SR.renderer = (() => {
         else if (t.zone && t.level === 0) drawZone(sc.sx, sc.sy, hw, hh, t);
         if (t.power && !t.building) drawPower(sc.sx, sc.sy, hw, hh);
         if (t.pipe && !t.building) drawPipe(sc.sx, sc.sy, hw, hh);
+        if (t.maglev && !t.building) drawMaglev(sc.sx, sc.sy, hw, hh, x, y);
       }
     }
 
@@ -621,6 +765,7 @@ SR.renderer = (() => {
     }
 
     drawDayNightOverlay();
+    drawParticles(performance.now());
     drawCursorHighlight();
     drawHoverLabel();
 
@@ -632,6 +777,38 @@ SR.renderer = (() => {
       ctx.drawImage(canvas, off, 0);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // Lightning flash
+    if (performance.now() < flashUntil) {
+      const left = flashUntil - performance.now();
+      const a = Math.min(1, left / 200);
+      ctx.fillStyle = flashColor.replace(/[\d.]+\)$/, (a * 0.7).toFixed(2) + ')');
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Auto-emit smoke from coal/fusion plants
+    if ((frame % 6) === 0) emitPlantSmoke();
+  }
+
+  function emitPlantSmoke() {
+    const tiles = SR.grid && SR.grid.tiles;
+    if (!tiles) return;
+    const W = SR.GRID_W, H = SR.GRID_H;
+    const b = viewBounds();
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || !t.building) continue;
+        if (t.bx !== x || t.by !== y) continue;
+        if (t.building === 'coal') {
+          spawnSmoke(x + 1, y + 1, { color: 'rgba(80,80,80,0.55)' });
+        } else if (t.building === 'fusion' && (frame % 18) === 0) {
+          spawnSmoke(x + 1, y + 1, { color: 'rgba(255,80,200,0.4)' });
+        } else if (t.building === 'water' && (frame % 24) === 0) {
+          spawnSmoke(x + 1, y + 1, { color: 'rgba(120,200,255,0.3)' });
+        }
+      }
     }
   }
 
@@ -747,5 +924,8 @@ SR.renderer = (() => {
     ctx.globalAlpha = 1;
   }
 
-  return { init, resize, render, triggerGlitch, getDarkness };
+  return {
+    init, resize, render, triggerGlitch, getDarkness,
+    spawnSmoke, spawnFloater, spawnVehicle, flashScreen, clearParticles,
+  };
 })();

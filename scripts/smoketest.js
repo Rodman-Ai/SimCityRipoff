@@ -203,4 +203,38 @@ for (let i = 0; i < 12; i++) SR.game.stepMonth();
 console.log('Starter pop after 12 months:', SR.game.population, 'funds:', Math.round(SR.game.funds));
 if (SR.game.population <= 0) console.warn('WARNING: starter city did not grow');
 
+// ----- Maglev + undo + ordinances test -----
+console.log('---');
+console.log('Maglev / undo / ordinances test:');
+SR.game.newCity({ name: 'TestRodman2', seed: 99, funds: 30000, starter: false });
+const tx0 = 16, ty0 = 16;
+SR.tools.beginAction();
+for (let i = 0; i < 5; i++) SR.grid.setMaglev(tx0 + i, ty0);
+SR.tools.endAction();
+let mag = 0;
+for (const t of SR.grid.tiles) if (t.maglev) mag++;
+console.log('Maglev tiles placed:', mag);
+
+// Toggle ordinances and step a month
+SR.game.ordinances = { curfew: true, clean: true, rec: true, promo: true };
+const fundsBefore = SR.game.funds;
+SR.game.stepMonth();
+console.log('Ordinance cost (≈₡650/mo):', Math.round(fundsBefore - SR.game.funds + (SR.game.lastIncome - SR.game.lastExpense + (fundsBefore - SR.game.funds))));
+console.log('lastExpense includes ordinance fee:', SR.game.lastExpense);
+if (SR.game.lastExpense < 600) console.warn('WARNING: ordinance cost not applied');
+
+// Undo a tool-driven placement (the path real input takes)
+SR.tools.select('road');
+SR.tools.beginAction();
+SR.tools.applyAt(20, 20);
+SR.tools.applyAt(21, 20);
+SR.tools.applyAt(22, 20);
+SR.tools.endAction();
+const had = SR.grid.get(20, 20).road;
+SR.tools.undo();
+const after20 = SR.grid.get(20, 20).road;
+const after21 = SR.grid.get(21, 20).road;
+console.log('Undo road: before=', had, 'after undo (20,21)=', after20, after21);
+if (after20 !== 0 || after21 !== 0) console.warn('WARNING: undo did not revert all placed road tiles');
+
 console.log('Smoke test PASS');

@@ -22,10 +22,10 @@ SR.sim = (() => {
 
     // BFS from each power source
     function isCarrier(t) {
-      return t && (t.power || t.road || t.building || (t.zone && t.level > 0));
+      return t && (t.power || t.road || t.maglev || t.building || (t.zone && t.level > 0));
     }
     function isPipeCarrier(t) {
-      return t && (t.pipe || t.road || t.building || (t.zone && t.level > 0));
+      return t && (t.pipe || t.road || t.maglev || t.building || (t.zone && t.level > 0));
     }
 
     const visited = new Uint8Array(W * H);
@@ -159,6 +159,16 @@ SR.sim = (() => {
     }
   }
 
+  // ---- Ordinance helpers ----
+  function ord(key) { return !!(SR.game.ordinances && SR.game.ordinances[key]); }
+  function ordinanceCost() {
+    let c = 0;
+    if (ord('promo')) c += 200;
+    if (ord('clean')) c += 150;
+    if (ord('rec'))   c += 300;
+    return c;
+  }
+
   // Compute coverage / pollution / crime / land-value fields and apply to tiles.
   function recomputeFields() {
     const W = SR.GRID_W, H = SR.GRID_H;
@@ -207,14 +217,16 @@ SR.sim = (() => {
       }
     }
 
+    const polMul = ord('clean') ? 0.75 : 1;
+    const crimeMul = ord('curfew') ? 0.65 : 1;
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const t = SR.grid.get(x, y);
         const i = y * W + x;
-        t.pollution = SR.utils.clamp(Math.round(pol2[i] || polF[i]), 0, 100);
+        t.pollution = SR.utils.clamp(Math.round((pol2[i] || polF[i]) * polMul), 0, 100);
 
         // Crime ↑ with low police, low value, high pollution
-        const baseCrime = 15 - policeF[i] * 25 + (t.pollution * 0.2) - (valueF[i] * 0.2);
+        const baseCrime = (15 - policeF[i] * 25 + (t.pollution * 0.2) - (valueF[i] * 0.2)) * crimeMul;
         t.crime = SR.utils.clamp(Math.round(baseCrime), 0, 100);
 
         // Fire risk ~ crime + low fire coverage
@@ -267,7 +279,10 @@ SR.sim = (() => {
       // Decide level changes
       const target = SR.utils.clamp(Math.round(fit * 3.5), 0, 3);
       if (t.level < target) {
-        if (Math.random() < 0.18) t.level++;
+        if (Math.random() < 0.18) {
+          t.level++;
+          t._anim = { from: performance.now(), dur: 500 };
+        }
       } else if (t.level > target) {
         if (Math.random() < 0.10) t.level--;
         if (t.level < 0) t.level = 0;
@@ -292,11 +307,14 @@ SR.sim = (() => {
     // Demand calc:
     const totalPop = popR;
     const totalJobs = jobsC + jobsI;
+    const recBoost = ord('rec') ? 25 : 0;       // Cyberware Subsidy → more R
+    const promoBoost = ord('promo') ? 25 : 0;   // Megacorp Tax Holiday → more I
+    const curfewMalus = ord('curfew') ? -10 : 0; // Curfew suppresses commerce
     // R demand: more jobs than pop -> R demand up
     SR.game.demand = {
-      r: SR.utils.clamp((totalJobs * 2 - totalPop) * 0.2 + (50 - tax * 400), -100, 100),
-      c: SR.utils.clamp((popR * 0.6 - jobsC) * 0.5 + (40 - tax * 350), -100, 100),
-      i: SR.utils.clamp((popR * 0.4 - jobsI) * 0.5 + (40 - tax * 300), -100, 100),
+      r: SR.utils.clamp((totalJobs * 2 - totalPop) * 0.2 + (50 - tax * 400) + recBoost, -100, 100),
+      c: SR.utils.clamp((popR * 0.6 - jobsC) * 0.5 + (40 - tax * 350) + curfewMalus, -100, 100),
+      i: SR.utils.clamp((popR * 0.4 - jobsI) * 0.5 + (40 - tax * 300) + promoBoost, -100, 100),
     };
 
     SR.game.population = totalPop;
@@ -309,7 +327,7 @@ SR.sim = (() => {
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const nt = SR.grid.get(x + dx, y + dy);
-        if (nt && nt.road) return true;
+        if (nt && (nt.road || nt.maglev)) return true;
       }
     }
     return false;
@@ -358,11 +376,32 @@ SR.sim = (() => {
     }
     SR.game.lastLoanPayment = loanPayment;
 
-    const expense = maintBuildings + maintRoads + loanPayment;
+    const ordCost = ordinanceCost();
+    const expense = maintBuildings + maintRoads + loanPayment + ordCost;
     const net = income - expense;
     SR.game.funds += net;
     SR.game.lastIncome = income;
     SR.game.lastExpense = expense;
+
+    // Visual: float a few "+₡" particles from earning zones (and "-₡" if in deficit)
+    if (SR.renderer && SR.renderer.spawnFloater && income > 0) {
+      const earners = [];
+      for (let y = 0; y < SR.GRID_H; y++) for (let x = 0; x < SR.GRID_W; x++) {
+        const t = SR.grid.get(x, y);
+        if (t.zone && t.level > 0) earners.push([x, y, t]);
+      }
+      const popCount = Math.min(5, Math.max(1, earners.length));
+      for (let i = 0; i < popCount; i++) {
+        const [x, y, t] = earners[(Math.random() * earners.length) | 0];
+        const share = (income / Math.max(1, earners.length)) * (0.7 + Math.random() * 0.6);
+        SR.renderer.spawnFloater(x, y, '+₡' + Math.round(share),
+          t.zone === 'r' ? '#3aff7a' : t.zone === 'c' ? '#3ad7ff' : '#ffd23a');
+      }
+    }
+    if (SR.renderer && SR.renderer.spawnFloater && net < -50) {
+      // Show a red deficit pop in the city center
+      SR.renderer.spawnFloater(SR.GRID_W / 2, SR.GRID_H / 2, '-₡' + Math.round(-net), '#ff5050');
+    }
     SR.game.history.push({ year: SR.game.year, month: SR.game.month, pop: SR.game.population, funds: SR.game.funds, income, expense });
     if (SR.game.history.length > 240) SR.game.history.shift();
 
@@ -399,6 +438,27 @@ SR.sim = (() => {
     }
   }
 
+  function dispatchServices() {
+    if (!SR.renderer || !SR.renderer.spawnVehicle) return;
+    const dispatched = { police: '#3ad7ff', fire: '#ff6a00', hospital: '#3aff7a' };
+    for (let y = 0; y < SR.GRID_H; y++) {
+      for (let x = 0; x < SR.GRID_W; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t.building || t.bx !== x || t.by !== y) continue;
+        const color = dispatched[t.building];
+        if (!color) continue;
+        if (Math.random() > 0.5) continue;
+        const def = SR.BUILDINGS[t.building];
+        const r = def.range || 6;
+        const dx = (Math.random() * 2 - 1) * r;
+        const dy = (Math.random() * 2 - 1) * r;
+        const tx = SR.utils.clamp(x + dx, 0, SR.GRID_W - 1);
+        const ty = SR.utils.clamp(y + dy, 0, SR.GRID_H - 1);
+        SR.renderer.spawnVehicle(x + 1, y + 1, tx, ty, color);
+      }
+    }
+  }
+
   // Called every game-month
   function tick() {
     if (netDirty) recomputeNetworks();
@@ -407,6 +467,8 @@ SR.sim = (() => {
     if (netDirty) recomputeNetworks(); // zones may have changed levels
     payDay();
     checkAchievements();
+    dispatchServices();
+    if (SR.advisor) SR.advisor.tick();
 
     SR.disasters.maybeTrigger();
 
