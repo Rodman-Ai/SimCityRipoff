@@ -69,7 +69,12 @@ Open `http://localhost:8000` and click **JACK IN**.
   map generation so you can replay the same Neo-Rodman with friends.
 - **Starter city** — every new game starts with a working road grid, a wind
   farm, water pump, holopark, and R/C/I zones already in place (free of
-  charge). Uncheck "Starter city" in *New City…* for a blank slate.
+  charge). The *New City…* dialog also offers a **Demo city** (fully-
+  developed showcase: 5×5 road grid, solar + wind plants, two water pumps,
+  Police HQ, Fire Dept, Cyberclinic, Datanet School, six holoparks,
+  Megacorp Tower, the unique Rodman Plaza, a maglev demo line, and pre-
+  grown R/C/I districts) or a **Blank slate** for purists. *Menu → Load
+  Demo City* loads it in one click.
 - **Day / night cycle** — sky tint, building windows light up at night, neon
   ground halos under tall residences in the dark.
 - **Animated traffic** — orange/yellow car dots stream along roads,

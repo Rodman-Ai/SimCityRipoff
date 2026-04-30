@@ -15,8 +15,25 @@ The camera centers on the cross.
 Press **▶** in the topbar to start time and watch the zones boot up. Then
 add roads, more power plants, services, and zones from there.
 
-If you want to start completely empty, uncheck **Starter city** in
+If you want to start completely empty, pick **Blank slate** in
 *Menu → New City…*
+
+### Demo city
+
+Want to see what a developed city looks like before building one yourself?
+Pick **Demo city** in *New City…*, or click *Load Demo City* in the menu.
+The demo drops:
+
+- A 5×5 grid of streets with two central Neon Highways
+- A 3×3 Solar Array + Wind Farm + two Water Pumps at the corners
+- One each of Police HQ, Fire Dept, Cyberclinic, Datanet School
+- Six Holoparks scattered between blocks
+- A Megacorp Tower and the unique Rodman Plaza
+- A short maglev line for showcasing the tube tool
+- Residential, Commercial, and Industrial districts pre-grown to
+  level 1–3 (denser in the centre, sparser on the outskirts)
+
+The demo always uses the same fixed seed so the layout is reproducible.
 
 ## 1. The Map
 

@@ -237,4 +237,28 @@ const after21 = SR.grid.get(21, 20).road;
 console.log('Undo road: before=', had, 'after undo (20,21)=', after20, after21);
 if (after20 !== 0 || after21 !== 0) console.warn('WARNING: undo did not revert all placed road tiles');
 
+// ----- Demo city test -----
+console.log('---');
+console.log('Demo-city test:');
+SR.game.newCity({ name: 'DemoRodman', funds: 30000, mode: 'demo' });
+let demoRoads = 0, demoZones = 0, demoBuildingTops = 0, demoMaglev = 0, demoLeveled = 0;
+const demoBuildings = new Set();
+for (let y = 0; y < SR.GRID_H; y++) for (let x = 0; x < SR.GRID_W; x++) {
+  const t = SR.grid.get(x, y);
+  if (t.road) demoRoads++;
+  if (t.maglev) demoMaglev++;
+  if (t.zone) demoZones++;
+  if (t.zone && t.level > 0) demoLeveled++;
+  if (t.building && t.bx === x && t.by === y) { demoBuildingTops++; demoBuildings.add(t.building); }
+}
+console.log('Demo roads:', demoRoads, 'zones:', demoZones, '(' + demoLeveled + ' pre-leveled)', 'maglev:', demoMaglev, 'buildings:', demoBuildingTops);
+console.log('Demo unique building keys:', [...demoBuildings].sort().join(', '));
+const expected = ['fire', 'hospital', 'megacorp', 'park', 'plaza', 'police', 'school', 'solar', 'water', 'wind'];
+for (const e of expected) {
+  if (!demoBuildings.has(e)) console.warn('WARNING: demo missing', e);
+}
+SR.game.stepMonth();
+console.log('Demo pop after 1 tick:', SR.game.population, 'jobs:', SR.game.jobs, 'funds:', Math.round(SR.game.funds));
+if (SR.game.population < 1000) console.warn('WARNING: demo population looks low');
+
 console.log('Smoke test PASS');

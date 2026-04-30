@@ -52,6 +52,10 @@ SR.ui = (() => {
           case 'export': openExport(); break;
           case 'import': openImport(); break;
           case 'newcity': openNewCity(); break;
+          case 'loaddemo':
+            SR.game.newCity({ name: 'Neo-Rodman Showcase', funds: 30000, mode: 'demo' });
+            alert('DEMO CITY LOADED', 'good');
+            break;
           case 'audio': SR.audio.toggle(); break;
           case 'music': SR.audio.toggleMusic(); break;
           case 'help': openHelp(); break;
@@ -400,11 +404,15 @@ SR.ui = (() => {
           <option value="normal" selected>NORMAL (₡20k)</option>
           <option value="hard">HARD (₡10k)</option>
         </select></span></div>
-      <div class="kv"><span class="k">Layout</span><span class="v">
-        <label style="cursor:pointer"><input type="checkbox" id="new-starter" checked style="accent-color:#ff6a00"> Starter city (recommended)</label>
+      <div class="kv"><span class="k">Layout</span><span class="v" style="text-align:left">
+        <label style="display:block;cursor:pointer;padding:2px 0"><input type="radio" name="new-mode" value="starter" checked style="accent-color:#ff6a00"> Starter city (recommended)</label>
+        <label style="display:block;cursor:pointer;padding:2px 0"><input type="radio" name="new-mode" value="demo"   style="accent-color:#ff6a00"> Demo city (showcase)</label>
+        <label style="display:block;cursor:pointer;padding:2px 0"><input type="radio" name="new-mode" value="blank"   style="accent-color:#ff6a00"> Blank slate</label>
       </span></div>
       <div style="font-size:12px;color:var(--text-d);margin:4px 0 8px 0">
-        Starter drops a road grid, wind farm, water pump, holopark and R/C/I zones — free of charge. Uncheck for a blank slate.
+        <b>Starter</b> drops a road cross, wind farm, water pump, holopark and R/C/I zones (free).
+        <b>Demo</b> spawns a fully-developed showcase city — multi-block grid, services, megacorp, plaza and pre-grown districts. (Demo uses a fixed map seed.)
+        <b>Blank</b> begins on virgin terrain.
       </div>
       <div class="btn-row"><button class="pri" id="newcity-btn">JACK IN</button></div>
     `;
@@ -415,8 +423,9 @@ SR.ui = (() => {
       const seed = parseInt(seedRaw, 10) || hashStr(seedRaw);
       const diff = document.getElementById('new-diff').value;
       const funds = diff === 'easy' ? 40000 : diff === 'hard' ? 10000 : 20000;
-      const starter = document.getElementById('new-starter').checked;
-      SR.game.newCity({ name, seed, funds, starter });
+      const sel = document.querySelector('input[name="new-mode"]:checked');
+      const mode = (sel && sel.value) || 'starter';
+      SR.game.newCity({ name, seed, funds, mode });
       closeModal();
       alert('NEW CITY: ' + name.toUpperCase(), 'good');
     });

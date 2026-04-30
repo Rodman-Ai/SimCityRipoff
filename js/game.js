@@ -57,8 +57,14 @@ SR.game = (() => {
     SR.ui.markStatsDirty();
   }
 
-  function newCity({ name, seed, funds, starter } = {}) {
-    state.cityName = name || 'Neo-Rodman';
+  // mode: 'starter' (default), 'demo', or 'blank'
+  function newCity({ name, seed, funds, starter, mode } = {}) {
+    if (mode == null) {
+      mode = (starter === false) ? 'blank' : 'starter';
+    }
+    // Demo always uses a known-good seed so the showcase landscape is consistent.
+    if (mode === 'demo') seed = 0xC1A0 ^ 0xCAFE;
+    state.cityName = name || (mode === 'demo' ? 'Neo-Rodman Showcase' : 'Neo-Rodman');
     state.seed = (seed | 0) || 1337;
     state.funds = funds || 20000;
     state.year = 2077; state.month = 0;
@@ -75,9 +81,15 @@ SR.game = (() => {
     state.tutorialDone = false;
     SR.grid.init(state.seed);
     let center = { x: SR.GRID_W / 2, y: SR.GRID_H / 2 };
-    if (starter !== false) center = buildStarterCity();
+    if (mode === 'starter') center = buildStarterCity();
+    else if (mode === 'demo') center = buildDemoCity();
     SR.camera.center(center.x, center.y);
     SR.sim.markDirty();
+    // Pre-compute networks/fields so the demo looks finished on first render.
+    if (mode === 'demo') {
+      SR.sim.recomputeNetworks();
+      SR.sim.recomputeFields();
+    }
     SR.ui.markStatsDirty();
     if (SR.tools && SR.tools.clearUndo) SR.tools.clearUndo();
     if (SR.renderer && SR.renderer.clearParticles) SR.renderer.clearParticles();
@@ -132,6 +144,109 @@ SR.game = (() => {
     for (let y = cy + 1; y <= cy + 5; y++) SR.grid.setZone(cx - 1, y, 'c');
     // Industrial — south of row road, east of col road (avoiding wind farm).
     for (let y = cy + 1; y <= cy + 5; y++) SR.grid.setZone(cx + 1, y, 'i');
+
+    return { x: cx, y: cy };
+  }
+
+  // Drop a fully-developed demo city: a 5x5 road grid, a solar array and a
+  // wind farm at the corners, two water pumps, a Police HQ + Fire Dept +
+  // Cyberclinic + Datanet School in inner cells, four Holoparks, a Megacorp
+  // Tower and the unique Rodman Plaza, plus zones pre-grown to level 1-3
+  // so the showcase looks lived-in immediately.
+  function buildDemoCity() {
+    const W = SR.GRID_W, H = SR.GRID_H;
+    function isClear(cx, cy, r) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const t = SR.grid.get(cx + dx, cy + dy);
+        if (!t || t.t !== 'ground') return false;
+      }
+      return true;
+    }
+    const W2 = (W / 2) | 0, H2 = (H / 2) | 0;
+    let cx = W2, cy = H2, found = false;
+    // Need a clear ~28x28 patch for a 13-radius city
+    for (let r = 0; r <= 18 && !found; r++) {
+      for (let dy = -r; dy <= r && !found; dy++) {
+        for (let dx = -r; dx <= r && !found; dx++) {
+          if (r > 0 && Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = W2 + dx, y = H2 + dy;
+          if (x >= 14 && y >= 14 && x < W - 14 && y < H - 14 && isClear(x, y, 13)) {
+            cx = x; cy = y; found = true;
+          }
+        }
+      }
+    }
+
+    // 5x5 grid of streets — a road every 4 tiles, with the central avenues
+    // as Neon Highways.
+    const HALF = 12;
+    for (let dy = -HALF; dy <= HALF; dy++) {
+      for (let dx = -HALF; dx <= HALF; dx++) {
+        const x = cx + dx, y = cy + dy;
+        if (dx === 0 || dy === 0) {
+          SR.grid.setRoad(x, y, 2); // central highways
+        } else if ((dx % 4 === 0) || (dy % 4 === 0)) {
+          SR.grid.setRoad(x, y, 1);
+        }
+      }
+    }
+
+    // Power & water at the four outer corners
+    SR.grid.place(cx - 11, cy - 11, 'solar');   // 3x3 NW
+    SR.grid.place(cx + 10, cy - 11, 'wind');    // 2x2 NE
+    SR.grid.place(cx - 11, cy + 9,  'water');   // 2x2 SW
+    SR.grid.place(cx + 10, cy + 9,  'water');   // 2x2 SE
+
+    // Service buildings — one per inner block quadrant
+    SR.grid.place(cx - 7, cy - 7, 'police');    // 2x2 NW inner
+    SR.grid.place(cx + 5, cy - 7, 'fire');      // 2x2 NE inner
+    SR.grid.place(cx - 7, cy + 5, 'hospital');  // 2x2 SW inner
+    SR.grid.place(cx + 5, cy + 5, 'school');    // 2x2 SE inner
+
+    // Holoparks scattered through the central blocks (1x1)
+    [[ -3, -3], [1, -3], [-3, 1], [1, 1], [-7, -3], [5, 1]].forEach(([dx, dy]) => {
+      SR.grid.place(cx + dx, cy + dy, 'park');
+    });
+
+    // Megacorp Tower (3x3) — landmark on western edge
+    SR.grid.place(cx - 11, cy + 1, 'megacorp');
+    // Rodman Plaza (unique 2x2) — landmark on eastern edge
+    SR.grid.place(cx + 9, cy - 7, 'plaza');
+
+    // Short maglev line connecting two distant blocks (showcase the tool)
+    for (let dx = -3; dx <= 3; dx++) {
+      // place between roads at y = cy - 6 (between row roads at -8 and -4)
+      const x = cx + dx, y = cy - 6;
+      const t = SR.grid.get(x, y);
+      if (t && !t.road && !t.building) SR.grid.setMaglev(x, y);
+    }
+
+    // Fill remaining inner cells with zones; pre-grow them so the demo
+    // looks populated on first render. Pollution-aware placement keeps
+    // industry south, residential north, commerce in the middle band.
+    for (let dy = -HALF + 1; dy < HALF; dy++) {
+      for (let dx = -HALF + 1; dx < HALF; dx++) {
+        const x = cx + dx, y = cy + dy;
+        const t = SR.grid.get(x, y);
+        if (!t || t.t !== 'ground') continue;
+        if (t.road || t.building || t.maglev || t.zone) continue;
+
+        let kind;
+        if (dy < -2) kind = 'r';
+        else if (dy < 2) kind = 'c';
+        else kind = 'i';
+
+        if (SR.grid.setZone(x, y, kind)) {
+          const tt = SR.grid.get(x, y);
+          // Distance-based level: dense in the middle, sparse on the edges
+          const d = Math.max(Math.abs(dx), Math.abs(dy));
+          const lvl = d < 4 ? 3 : d < 8 ? 2 : 1;
+          tt.level = lvl;
+          // Stagger pop-in animation outward from the centre
+          tt._anim = { from: performance.now() + d * 25, dur: 600 };
+        }
+      }
+    }
 
     return { x: cx, y: cy };
   }
