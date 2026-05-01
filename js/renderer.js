@@ -414,14 +414,18 @@ SR.renderer = (() => {
     const ne = SR.grid.get(x, y - 1);
     const sw = SR.grid.get(x, y + 1);
     const isHigh = t.road === 2;
+    const isOneway = t.road === 3;
+    const isDiag = t.road === 4;
+    const isBridge = t.t === 'water';
     const cNW = nw && nw.road;
     const cSE = se && se.road;
     const cNE = ne && ne.road;
     const cSW = sw && sw.road;
 
-    // Asphalt diamond — visibly grey-warm so it reads as pavement on the
-    // dark map instead of disappearing into the background.
-    ctx.fillStyle = isHigh ? '#211712' : '#1a1310';
+    // Asphalt diamond. Bridges get a colder, blued asphalt + faint deck shadow.
+    if (isBridge) ctx.fillStyle = '#0e1622';
+    else if (isHigh) ctx.fillStyle = '#211712';
+    else ctx.fillStyle = '#1a1310';
     diamondPath(sx, sy, hw, hh);
     ctx.fill();
 
@@ -432,41 +436,53 @@ SR.renderer = (() => {
     const mSW = { x: sx - hw / 2, y: sy + hh / 2 };
 
     // Asphalt edge stripe (the kerb) — a darker outline of the diamond
-    ctx.strokeStyle = isHigh ? '#0a0805' : '#0e0a06';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = isBridge ? '#3a4a6a' : (isHigh ? '#0a0805' : '#0e0a06');
+    ctx.lineWidth = isBridge ? 1.5 : 1;
     diamondPath(sx, sy, hw, hh);
     ctx.stroke();
 
     // Lane stripe — neon, with shadow glow.
-    const stripe = isHigh ? '#ffaa1f' : '#ff6a00';
+    const stripe = isOneway ? '#3ad7ff'
+                 : isDiag   ? '#ffaa1f'
+                 : isHigh   ? '#ffaa1f'
+                 :            '#ff6a00';
     ctx.strokeStyle = stripe;
     ctx.lineWidth = isHigh ? 2 : 1;
     ctx.shadowColor = stripe;
     ctx.shadowBlur = isHigh ? 10 : 5;
 
-    ctx.beginPath();
-    // NW↔SE lane: prefer a straight pass-through if both neighbors are roads;
-    // otherwise draw a stub from the centre to whichever side connects.
-    if (cNW && cSE) {
-      ctx.moveTo(mNW.x, mNW.y); ctx.lineTo(mSE.x, mSE.y);
+    if (isDiag) {
+      // #35 Diagonal road — paint a single 45° stripe on whichever axis
+      // has any neighbour (or NW↔SE by default). No second axis.
+      ctx.beginPath();
+      const useA = cNW || cSE || (!cNE && !cSW);
+      if (useA) { ctx.moveTo(mNW.x, mNW.y); ctx.lineTo(mSE.x, mSE.y); }
+      else      { ctx.moveTo(mNE.x, mNE.y); ctx.lineTo(mSW.x, mSW.y); }
+      ctx.stroke();
     } else {
-      if (cNW) { ctx.moveTo(sx, sy); ctx.lineTo(mNW.x, mNW.y); }
-      if (cSE) { ctx.moveTo(sx, sy); ctx.lineTo(mSE.x, mSE.y); }
+      ctx.beginPath();
+      // NW↔SE lane: prefer a straight pass-through if both neighbors are roads;
+      // otherwise draw a stub from the centre to whichever side connects.
+      if (cNW && cSE) { ctx.moveTo(mNW.x, mNW.y); ctx.lineTo(mSE.x, mSE.y); }
+      else {
+        if (cNW) { ctx.moveTo(sx, sy); ctx.lineTo(mNW.x, mNW.y); }
+        if (cSE) { ctx.moveTo(sx, sy); ctx.lineTo(mSE.x, mSE.y); }
+      }
+      // NE↔SW lane.
+      if (cNE && cSW) { ctx.moveTo(mNE.x, mNE.y); ctx.lineTo(mSW.x, mSW.y); }
+      else {
+        if (cNE) { ctx.moveTo(sx, sy); ctx.lineTo(mNE.x, mNE.y); }
+        if (cSW) { ctx.moveTo(sx, sy); ctx.lineTo(mSW.x, mSW.y); }
+      }
+      // Isolated tile — short dash so the player can see it.
+      if (!cNW && !cNE && !cSE && !cSW) {
+        ctx.moveTo(sx - hw * 0.3, sy);
+        ctx.lineTo(sx + hw * 0.3, sy);
+      }
+      ctx.stroke();
     }
-    // NE↔SW lane.
-    if (cNE && cSW) {
-      ctx.moveTo(mNE.x, mNE.y); ctx.lineTo(mSW.x, mSW.y);
-    } else {
-      if (cNE) { ctx.moveTo(sx, sy); ctx.lineTo(mNE.x, mNE.y); }
-      if (cSW) { ctx.moveTo(sx, sy); ctx.lineTo(mSW.x, mSW.y); }
-    }
-    // Isolated road tile — show a small dash so the player can see it.
-    if (!cNW && !cNE && !cSE && !cSW) {
-      ctx.moveTo(sx - hw * 0.3, sy);
-      ctx.lineTo(sx + hw * 0.3, sy);
-    }
-    ctx.stroke();
-    // Highway: paint a second, thinner inner stripe for the divided look
+
+    // Highway divider — second thinner inner stripe.
     if (isHigh) {
       ctx.strokeStyle = '#ffe8a0';
       ctx.lineWidth = 1;
@@ -482,7 +498,78 @@ SR.renderer = (() => {
       }
       ctx.stroke();
     }
+
+    // One-way arrow — small triangle pointing along the dominant axis.
+    if (isOneway) {
+      ctx.fillStyle = stripe;
+      ctx.shadowColor = stripe;
+      ctx.shadowBlur = 6;
+      const useA = cNW || cSE || (!cNE && !cSW);
+      const a = useA ? mNW : mNE;
+      const b = useA ? mSE : mSW;
+      const phase = ((frame * 0.012 + (x * 0.13 + y * 0.07)) % 1);
+      const px = a.x + (b.x - a.x) * phase;
+      const py = a.y + (b.y - a.y) * phase;
+      const dx = (b.x - a.x), dy = (b.y - a.y);
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      // Two-pixel arrow: 3-point fill
+      ctx.beginPath();
+      ctx.moveTo(px + ux * 3, py + uy * 3);
+      ctx.lineTo(px - ux * 2 - uy * 2, py - uy * 2 + ux * 2);
+      ctx.lineTo(px - ux * 2 + uy * 2, py - uy * 2 - ux * 2);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.shadowBlur = 0;
+
+    // Bridge girders — short truss strokes under each lane endpoint.
+    if (isBridge) {
+      ctx.strokeStyle = 'rgba(120,150,200,0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const m of [mNW, mNE, mSE, mSW]) {
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(m.x, m.y + hh * 0.45);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // #31 Subway — translucent magenta dashed line below the surface, drawn
+  // softly at low alpha so it's visible even under roads/zones.
+  function drawSubway(sx, sy, hw, hh, x, y) {
+    const nw = SR.grid.get(x - 1, y);
+    const se = SR.grid.get(x + 1, y);
+    const ne = SR.grid.get(x, y - 1);
+    const sw = SR.grid.get(x, y + 1);
+    const cNW = nw && nw.subway;
+    const cSE = se && se.subway;
+    const cNE = ne && ne.subway;
+    const cSW = sw && sw.subway;
+    const mNW = { x: sx - hw / 2, y: sy - hh / 2 };
+    const mNE = { x: sx + hw / 2, y: sy - hh / 2 };
+    const mSE = { x: sx + hw / 2, y: sy + hh / 2 };
+    const mSW = { x: sx - hw / 2, y: sy + hh / 2 };
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,42,204,0.55)';
+    ctx.shadowColor = '#ff2acc';
+    ctx.shadowBlur = 4;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.lineDashOffset = -((frame * 0.5) % 7);
+    ctx.beginPath();
+    if (cNW && cSE) { ctx.moveTo(mNW.x, mNW.y); ctx.lineTo(mSE.x, mSE.y); }
+    else { if (cNW) { ctx.moveTo(sx, sy); ctx.lineTo(mNW.x, mNW.y); }
+           if (cSE) { ctx.moveTo(sx, sy); ctx.lineTo(mSE.x, mSE.y); } }
+    if (cNE && cSW) { ctx.moveTo(mNE.x, mNE.y); ctx.lineTo(mSW.x, mSW.y); }
+    else { if (cNE) { ctx.moveTo(sx, sy); ctx.lineTo(mNE.x, mNE.y); }
+           if (cSW) { ctx.moveTo(sx, sy); ctx.lineTo(mSW.x, mSW.y); } }
+    if (!cNW && !cNE && !cSE && !cSW) {
+      ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawPower(sx, sy, hw, hh) {
@@ -1099,9 +1186,10 @@ SR.renderer = (() => {
         drawTileBase(sc.sx, sc.sy, hw, hh, t);
         if (t.t === 'water') drawWaterEdge(sc.sx, sc.sy, hw, hh, x, y);
 
+        if (t.subway) drawSubway(sc.sx, sc.sy, hw, hh, x, y);
         if (t.road) {
           drawRoad(sc.sx, sc.sy, hw, hh, t, x, y);
-          drawTraffic(sc.sx, sc.sy, hw, hh, t, x, y);
+          if (t.road === 1 || t.road === 2) drawTraffic(sc.sx, sc.sy, hw, hh, t, x, y);
         }
         else if (t.zone && t.level === 0) drawZone(sc.sx, sc.sy, hw, hh, t);
         if (t.power && !t.building) drawPower(sc.sx, sc.sy, hw, hh);

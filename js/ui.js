@@ -243,7 +243,11 @@ SR.ui = (() => {
       html += '<div class="kv"><span class="k">Pollution</span><span class="v">' + t.pollution + '</span></div>';
       html += '<div class="kv"><span class="k">Land Value</span><span class="v">' + t.land + '</span></div>';
     } else if (t.road) {
-      head = t.road === 2 ? 'Neon Highway' : 'Road';
+      head = t.road === 2 ? 'Neon Highway'
+           : t.road === 3 ? 'One-Way Road'
+           : t.road === 4 ? 'Diagonal Road'
+           : t.t === 'water' ? 'Bridge'
+           : 'Road';
     } else {
       head = 'Empty Lot';
       html += '<div class="kv"><span class="k">Elevation</span><span class="v">' + t.z + '</span></div>';

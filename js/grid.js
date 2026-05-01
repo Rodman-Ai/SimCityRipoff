@@ -36,7 +36,8 @@ SR.grid = (() => {
   function newTile() {
     return {
       z: 0, t: 'ground',
-      road: 0, power: false, pipe: false, maglev: false,
+      // road: 0=none, 1=road, 2=neon highway, 3=one-way, 4=diagonal
+      road: 0, power: false, pipe: false, maglev: false, subway: false,
       poweredBy: false, watered: false,
       zone: null, building: null, bx: 0, by: 0,
       level: 0, pop: 0, jobs: 0,
@@ -113,7 +114,8 @@ SR.grid = (() => {
   }
 
   function clear(t) {
-    t.road = 0; t.power = false; t.pipe = false; t.maglev = false;
+    t.road = 0; t.power = false; t.pipe = false;
+    t.maglev = false; t.subway = false;
     t.zone = null; t.building = null;
     t.level = 0; t.pop = 0; t.jobs = 0;
     t.bx = 0; t.by = 0; t.onFire = 0;
@@ -137,7 +139,7 @@ SR.grid = (() => {
       }
       return true;
     }
-    if (t.road || t.power || t.pipe || t.maglev || t.zone) {
+    if (t.road || t.power || t.pipe || t.maglev || t.subway || t.zone) {
       clear(t);
       return true;
     }
@@ -150,6 +152,17 @@ SR.grid = (() => {
     if (t.building) return false;
     t.maglev = true;
     t.zone = null;
+    return true;
+  }
+
+  // Subway is an underground transit tile that may overlap the surface
+  // (no building, but tolerates road/zone above). Counts as a power/water
+  // carrier and as road for zone fitness.
+  function setSubway(x, y) {
+    const t = get(x, y);
+    if (!t || t.t !== 'ground') return false;
+    if (t.subway) return false;
+    t.subway = true;
     return true;
   }
 
@@ -181,6 +194,19 @@ SR.grid = (() => {
       }
       if (!ok) return false;
     }
+    // Water adjacency check (e.g. ferry pier must touch a water tile).
+    if (def.needsWater) {
+      let ok = false;
+      for (let dy = -1; dy <= sz; dy++) {
+        for (let dx = -1; dx <= sz; dx++) {
+          if (dx >= 0 && dx < sz && dy >= 0 && dy < sz) continue;
+          const t = get(x + dx, y + dy);
+          if (t && t.t === 'water') { ok = true; break; }
+        }
+        if (ok) break;
+      }
+      if (!ok) return false;
+    }
     // Place
     for (let dy = 0; dy < sz; dy++) {
       for (let dx = 0; dx < sz; dx++) {
@@ -201,8 +227,10 @@ SR.grid = (() => {
 
   function setRoad(x, y, level) {
     const t = get(x, y);
-    if (!t || t.t !== 'ground') return false;
+    if (!t) return false;
     if (t.building) return false;
+    // Water tiles only accept full-strength bridges (level 1 or 2).
+    if (t.t === 'water' && level !== 1 && level !== 2) return false;
     t.road = level;
     t.zone = null;
     return true;
@@ -241,7 +269,7 @@ SR.grid = (() => {
 
   return {
     init, get, idx, inBounds, demolish, place,
-    setRoad, setPower, setPipe, setMaglev, setZone,
+    setRoad, setPower, setPipe, setMaglev, setSubway, setZone,
     size, snapshot,
     get tiles() { return tiles; },
     set tiles(v) { tiles = v; W = SR.GRID_W; H = SR.GRID_H; },

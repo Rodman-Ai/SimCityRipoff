@@ -93,9 +93,12 @@ SR.tools = (() => {
       case 'bulldoze': return 5;
       case 'road': return 10;
       case 'highway': return 30;
+      case 'oneway': return 15;
+      case 'diagroad': return 12;
       case 'power': return 5;
       case 'pipe': return 5;
       case 'maglev': return 25;
+      case 'subway': return 20;
       case 'zone_r':
       case 'zone_c':
       case 'zone_i': return 10;
@@ -123,9 +126,12 @@ SR.tools = (() => {
       case 'bulldoze': return doBulldoze(x, y);
       case 'road': return doRoad(x, y, 1);
       case 'highway': return doRoad(x, y, 2);
+      case 'oneway': return doRoad(x, y, 3);
+      case 'diagroad': return doRoad(x, y, 4);
       case 'power': return doPower(x, y);
       case 'pipe': return doPipe(x, y);
       case 'maglev': return doMaglev(x, y);
+      case 'subway': return doSubway(x, y);
       case 'zone_r': return doZone(x, y, 'r');
       case 'zone_c': return doZone(x, y, 'c');
       case 'zone_i': return doZone(x, y, 'i');
@@ -151,11 +157,25 @@ SR.tools = (() => {
 
   function doRoad(x, y, level) {
     const t = SR.grid.get(x, y);
-    if (!t || t.t !== 'ground' || t.building) { fail(); return; }
+    if (!t || t.building) { fail(); return; }
     if (t.road === level) return;
-    const cost = getCost(level === 2 ? 'highway' : 'road');
+    // Bridges (road over water) only allow normal road or highway, and at a
+    // premium cost. Curved/oneway can't span water in the MVP.
+    if (t.t === 'water' && level !== 1 && level !== 2) { fail('NEEDS BRIDGE'); return; }
+    const baseTool = level === 2 ? 'highway' : level === 3 ? 'oneway' : level === 4 ? 'diagroad' : 'road';
+    let cost = getCost(baseTool);
+    if (t.t === 'water') cost += 30; // bridge premium
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
     if (SR.grid.setRoad(x, y, level)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+  }
+
+  function doSubway(x, y) {
+    const t = SR.grid.get(x, y);
+    if (!t || t.t !== 'ground') { fail(); return; }
+    if (t.subway) return;
+    const cost = getCost('subway');
+    if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
+    if (SR.grid.setSubway(x, y)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
   }
 
   function doPower(x, y) {

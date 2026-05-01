@@ -199,7 +199,8 @@ SR.input = (() => {
 
   // ---- Keyboard ----
   const keymap = {
-    'b': 'bulldoze', 'r': 'road', 'h': 'highway', 'p': 'power', 'w': 'pipe', 'm': 'maglev',
+    'b': 'bulldoze', 'r': 'road', 'h': 'highway', 'p': 'power', 'w': 'pipe',
+    'm': 'maglev', 'u': 'subway', 'o': 'oneway',
     '1': 'zone_r', '2': 'zone_c', '3': 'zone_i',
     '4': 'build_police', '5': 'build_fire', '6': 'build_hospital',
     '7': 'build_school', '8': 'build_park',

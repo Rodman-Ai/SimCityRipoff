@@ -295,4 +295,84 @@ SR.save.importJson(w1json);
 console.log('TaxRates after save/load:', JSON.stringify(SR.game.taxRates));
 if (SR.game.taxRates.r !== 0.05 || SR.game.taxRates.i !== 0.13) console.warn('WARNING: taxRates lost in round-trip');
 
+// ----- Wave 3 features test -----
+console.log('---');
+console.log('Wave-3 features test:');
+SR.game.newCity({ name: 'Wave3', funds: 50000, mode: 'blank' });
+
+// Locate a clear ground area near center to lay our test infrastructure
+const W3 = SR.GRID_W, H3 = SR.GRID_H;
+function isClear3(cx, cy, r) {
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const tt = SR.grid.get(cx + dx, cy + dy);
+    if (!tt || tt.t !== 'ground') return false;
+  }
+  return true;
+}
+let cx3 = -1, cy3 = -1;
+for (let y = 8; y < H3 - 8 && cx3 < 0; y++) for (let x = 8; x < W3 - 8 && cx3 < 0; x++) {
+  if (isClear3(x, y, 6)) { cx3 = x; cy3 = y; }
+}
+if (cx3 < 0) { cx3 = 16; cy3 = 16; }
+console.log('Test centre at', cx3, cy3);
+
+// Subway placement and BFS
+SR.tools.select('subway');
+SR.tools.beginAction();
+for (let i = -3; i <= 3; i++) SR.tools.applyAt(cx3 + i, cy3);
+SR.tools.endAction();
+let subN = 0;
+for (const t of SR.grid.tiles) if (t.subway) subN++;
+console.log('Subway tiles placed:', subN);
+if (subN < 5) console.warn('WARNING: subway not placed correctly');
+
+// Subway should count as carrier — drop a wind farm at one end and verify
+// the far subway tile is poweredBy.
+SR.grid.setRoad(cx3 + 4, cy3, 1); // an adjacent road for windfarm placement
+SR.grid.place(cx3 + 4, cy3 + 1, 'wind');
+SR.sim.markDirty();
+SR.sim.recomputeNetworks();
+const farSub = SR.grid.get(cx3 - 3, cy3);
+console.log('Far subway tile poweredBy:', !!farSub.poweredBy);
+if (!farSub.poweredBy) console.warn('WARNING: subway BFS not propagating');
+
+// One-way and diagonal road kinds
+SR.tools.select('oneway');
+SR.tools.beginAction();
+SR.tools.applyAt(cx3, cy3 + 2);
+SR.tools.endAction();
+SR.tools.select('diagroad');
+SR.tools.beginAction();
+SR.tools.applyAt(cx3, cy3 + 3);
+SR.tools.endAction();
+console.log('Oneway tile road kind:', SR.grid.get(cx3, cy3 + 2).road,
+            'Diagonal tile road kind:', SR.grid.get(cx3, cy3 + 3).road);
+
+// Bridge — road on water (find a water tile)
+let waterFound = null;
+for (let y = 0; y < H3 && !waterFound; y++) for (let x = 0; x < W3 && !waterFound; x++) {
+  const t = SR.grid.get(x, y);
+  if (t.t === 'water') waterFound = { x, y };
+}
+if (waterFound) {
+  const fundsBefore = SR.game.funds;
+  SR.tools.select('road');
+  SR.tools.beginAction();
+  SR.tools.applyAt(waterFound.x, waterFound.y);
+  SR.tools.endAction();
+  const bridgeTile = SR.grid.get(waterFound.x, waterFound.y);
+  console.log('Bridge placed on water:', bridgeTile.road === 1, 'cost', fundsBefore - SR.game.funds);
+  if (bridgeTile.road !== 1) console.warn('WARNING: road did not place on water');
+} else {
+  console.log('(no water tile in range to test bridges)');
+}
+
+// Save / load preserves subway field
+const w3json = SR.save.exportJson();
+SR.save.importJson(w3json);
+let restoredSub = 0;
+for (const t of SR.grid.tiles) if (t.subway) restoredSub++;
+console.log('Subway tiles after save/load:', restoredSub);
+if (restoredSub !== subN) console.warn('WARNING: subway lost in round-trip');
+
 console.log('Smoke test PASS');

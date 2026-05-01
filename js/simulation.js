@@ -22,10 +22,10 @@ SR.sim = (() => {
 
     // BFS from each power source
     function isCarrier(t) {
-      return t && (t.power || t.road || t.maglev || t.building || (t.zone && t.level > 0));
+      return t && (t.power || t.road || t.maglev || t.subway || t.building || (t.zone && t.level > 0));
     }
     function isPipeCarrier(t) {
-      return t && (t.pipe || t.road || t.maglev || t.building || (t.zone && t.level > 0));
+      return t && (t.pipe || t.road || t.maglev || t.subway || t.building || (t.zone && t.level > 0));
     }
 
     const visited = new Uint8Array(W * H);
@@ -362,7 +362,7 @@ SR.sim = (() => {
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const nt = SR.grid.get(x + dx, y + dy);
-        if (nt && (nt.road || nt.maglev)) return true;
+        if (nt && (nt.road || nt.maglev || nt.subway)) return true;
       }
     }
     return false;

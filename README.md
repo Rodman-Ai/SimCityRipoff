@@ -155,6 +155,21 @@ Open `http://localhost:8000` and click **JACK IN**.
   residential tile.
 - **Demolition debris** — 12-particle puff with gravity bursts every
   time you bulldoze something.
+- **Subway tube** ⎇ — underground transit (`U` hotkey, ₡20). Carries
+  power and water and counts as road for zone fitness, drawn as a
+  scrolling magenta dashed line that doesn't conflict with the surface.
+- **One-way road** → — cyan stripe with an animated arrow pulse
+  showing direction (`O` hotkey, ₡15).
+- **Diagonal road** ╱ — single 45° lane stripe variant (₡12).
+- **Bridges** — drag a road or highway over water at +₡30 premium;
+  rendered with cool blued asphalt and underdeck girders.
+- **Bus Depot** ⊟ (₡600, 2×2, range 12) — adds transit coverage and
+  land value.
+- **Train Station** ⌷ (₡1,500, 3×3, range 18, requires 1k pop) — big
+  land-value boost.
+- **Ferry Pier** ⊻ (₡800, 2×2, range 10) — must touch a water tile.
+- **Subway Station** ⊕ (₡200, 1×1, range 7) — small surface plop with
+  land-value bonus, pairs with Subway tubes.
 - **No build step, no dependencies** — pure HTML, CSS, and vanilla JS. Open
   the file, play the game.
 

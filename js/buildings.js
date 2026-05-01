@@ -90,6 +90,34 @@ SR.BUILDINGS = {
     color: '#0a1a2a', trim: '#3ad7ff', glyph: '⊙', category: 'water',
   },
 
+  // --- Mass transit ---
+  busdepot: {
+    tool: 'build_busdepot', label: 'Bus Depot', cost: 600, maint: 40, size: 2,
+    power: -4, water: -2, pop: 0, jobs: 14, capacity: 0, range: 12,
+    pollution: 1, crimeRed: 0, fireRed: 0, landBoost: 6, needsRoad: true,
+    color: '#1a1410', trim: '#ffd23a', glyph: '⊟', category: 'service',
+  },
+  trainstation: {
+    tool: 'build_trainstation', label: 'Train Station', cost: 1500, maint: 120, size: 3,
+    power: -10, water: -5, pop: 0, jobs: 30, capacity: 0, range: 18,
+    pollution: 2, crimeRed: 0, fireRed: 0, landBoost: 10, needsRoad: true,
+    color: '#1a0a0a', trim: '#ff6a00', glyph: '⌷', category: 'service',
+    requires: { population: 1000 },
+  },
+  ferry: {
+    tool: 'build_ferry', label: 'Ferry Pier', cost: 800, maint: 50, size: 2,
+    power: -2, water: 0, pop: 0, jobs: 14, capacity: 0, range: 10,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 5,
+    needsRoad: true, needsWater: true,
+    color: '#0a141a', trim: '#3ad7ff', glyph: '⊻', category: 'service',
+  },
+  subwaystn: {
+    tool: 'build_subwaystn', label: 'Subway Stn', cost: 200, maint: 10, size: 1,
+    power: -1, water: 0, pop: 0, jobs: 4, capacity: 0, range: 7,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 5, needsRoad: true,
+    color: '#0a0a14', trim: '#ff2acc', glyph: '⊕', category: 'service',
+  },
+
   // --- Sanitation / civic ---
   incinerator: {
     tool: 'build_incinerator', label: 'Incinerator', cost: 800, maint: 80, size: 2,
