@@ -140,6 +140,91 @@ SR.disasters = (() => {
       },
       weight: 0.4,
     },
+    // ---- Round 2 disasters (R2-26..R2-30) ----
+    {
+      key: 'tornado', name: 'TORNADO',
+      msg: 'A funnel rips a column of tiles across the city.',
+      effect: () => {
+        const W = SR.GRID_W, H = SR.GRID_H;
+        const col = (Math.random() * W) | 0;
+        let n = 0;
+        for (let y = 0; y < H; y++) {
+          if (Math.random() < 0.45 * disasterMul()) {
+            const t = SR.grid.get(col, y);
+            if (!t || t.t === 'water') continue;
+            if (t.zone) t.level = Math.max(0, t.level - 2);
+            if (t.road && Math.random() < 0.6) t.road = 0;
+            if (t.building && Math.random() < 0.3) {
+              SR.grid.demolish(col, y);
+            }
+            n++;
+          }
+        }
+        SR.renderer.triggerGlitch(1500);
+        if (n) SR.ui.alert(n + ' TILES SHREDDED', 'bad');
+      },
+      weight: 0.6,
+    },
+    {
+      key: 'ddos', name: 'DDoS ATTACK',
+      msg: 'Service buildings dropped offline by botnet flood.',
+      effect: () => {
+        SR.game.ddosMonths = 4;
+        SR.renderer.flashScreen(280, 'rgba(255,40,180,0.7)');
+      },
+      weight: 0.8,
+    },
+    {
+      key: 'toxic', name: 'TOXIC SPILL',
+      msg: 'Industrial accident — pollution surge for 12 months.',
+      effect: () => {
+        // Find a random industrial tile (or any tile) as the spill epicentre.
+        const tiles = SR.grid.tiles;
+        let candidates = [];
+        for (let y = 0; y < SR.GRID_H; y++) for (let x = 0; x < SR.GRID_W; x++) {
+          const t = SR.grid.get(x, y);
+          if (t.zone === 'i' && t.level > 0) candidates.push([x, y]);
+        }
+        if (!candidates.length) {
+          for (let y = 0; y < SR.GRID_H; y++) for (let x = 0; x < SR.GRID_W; x++) {
+            const t = SR.grid.get(x, y); if (t.t === 'ground') candidates.push([x, y]);
+          }
+        }
+        if (!candidates.length) return;
+        const [x, y] = candidates[(Math.random() * candidates.length) | 0];
+        SR.game.toxicSpills.push({ x, y, ticksLeft: 12 });
+        SR.ui.alert('TOXIC SPILL @ ' + x + ',' + y, 'bad');
+        SR.renderer.flashScreen(220, 'rgba(180,255,80,0.6)');
+      },
+      weight: 0.7,
+    },
+    {
+      key: 'memeplague', name: 'MEMETIC PLAGUE',
+      msg: 'Viral info-bomb tanks public morale for 6 months.',
+      effect: () => {
+        SR.game.plagueMonths = 6;
+        SR.game.approval = SR.utils.clamp((SR.game.approval || 50) - 12, 0, 100);
+        SR.renderer.triggerGlitch(2000);
+      },
+      weight: 0.9,
+    },
+    {
+      key: 'blackice', name: 'BLACK-ICE WINTER',
+      msg: 'Sudden frost — random roads frozen for weeks.',
+      effect: () => {
+        // Only triggers in winter months (0..2) — soft-skip otherwise.
+        if (SR.game.month > 2 && SR.game.month < 11) return;
+        let n = 0;
+        for (const t of SR.grid.tiles) {
+          if (t.road && Math.random() < 0.05 * disasterMul()) {
+            t.frozen = 4 + ((Math.random() * 4) | 0);
+            n++;
+          }
+        }
+        if (n) SR.ui.alert(n + ' ROADS ICED OVER', 'bad');
+      },
+      weight: 0.4,
+    },
     {
       key: 'eruption', name: 'EMP ERUPTION',
       msg: 'Underground reactor breach! Lava-glass tiles permanent.',

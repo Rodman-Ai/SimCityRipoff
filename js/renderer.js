@@ -1054,6 +1054,109 @@ SR.renderer = (() => {
     }
   }
 
+  // R2-4 District color overlay — tints every tile assigned to a district
+  function drawDistricts() {
+    const dists = SR.game.districts || [];
+    if (!dists.length) return;
+    const cam = SR.camera;
+    const hw = (cam.TILE_W / 2) * cam.getZoom();
+    const hh = (cam.TILE_H / 2) * cam.getZoom();
+    const b = viewBounds();
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || !t.district) continue;
+        const d = dists[t.district - 1];
+        if (!d) continue;
+        const sc = cam.tileToScreen(x, y, t.z);
+        ctx.fillStyle = d.color + '33'; // ~20% alpha
+        diamondPath(sc.sx, sc.sy, hw, hh);
+        ctx.fill();
+      }
+    }
+  }
+
+  // R2-23 Traffic congestion road tinting — high adjacent-zone-density roads
+  // get a red tinge layered over the base asphalt.
+  function drawCongestion() {
+    const cam = SR.camera;
+    const hw = (cam.TILE_W / 2) * cam.getZoom();
+    const hh = (cam.TILE_H / 2) * cam.getZoom();
+    const b = viewBounds();
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || !t.road) continue;
+        let load = 0;
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const n = SR.grid.get(x + dx, y + dy);
+          if (n && n.zone && n.level > 0) load += n.level;
+        }
+        if (load < 4) continue;
+        const sc = cam.tileToScreen(x, y, t.z);
+        const a = Math.min(0.5, (load - 3) * 0.12);
+        ctx.fillStyle = `rgba(255,40,30,${a.toFixed(3)})`;
+        diamondPath(sc.sx, sc.sy, hw, hh);
+        ctx.fill();
+      }
+    }
+  }
+
+  // R2-24 Service coverage outline — circle around every service building
+  function drawCoverage() {
+    if (!SR.game.coverageOverlay) return;
+    const cam = SR.camera;
+    const zoom = cam.getZoom();
+    const b = viewBounds();
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || !t.building || t.bx !== x || t.by !== y) continue;
+        const def = SR.BUILDINGS[t.building];
+        if (!def || !def.range || def.range < 1) continue;
+        const sz = def.size;
+        const sc = cam.tileToScreen(x + (sz - 1) / 2, y + (sz - 1) / 2, t.z);
+        const r = def.range * cam.TILE_W * 0.5 * zoom;
+        // Use the building trim color so each service draws in its own hue
+        ctx.strokeStyle = (def.trim || '#ffaa1f') + 'a8';
+        ctx.beginPath();
+        ctx.ellipse(sc.sx, sc.sy, r, r * 0.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  // R2-39 Rectangle marquee for mass-paint preview
+  function drawRectMarquee() {
+    const r = SR.input && SR.input.getRectDrag && SR.input.getRectDrag();
+    if (!r) return;
+    const cam = SR.camera;
+    const hw = (cam.TILE_W / 2) * cam.getZoom();
+    const hh = (cam.TILE_H / 2) * cam.getZoom();
+    const ax = Math.min(r.x0, r.x1), bx = Math.max(r.x0, r.x1);
+    const ay = Math.min(r.y0, r.y1), by = Math.max(r.y0, r.y1);
+    ctx.save();
+    ctx.strokeStyle = '#ffd23a';
+    ctx.shadowColor = '#ffd23a';
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 2;
+    for (let y = ay; y <= by; y++) {
+      for (let x = ax; x <= bx; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t) continue;
+        const sc = cam.tileToScreen(x, y, t.z);
+        diamondPath(sc.sx, sc.sy, hw, hh);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   // Heatmap overlay (#74) — translucent tile-by-tile color over the main view
   function drawHeatmap() {
     const mode = SR.game.heatmap;
@@ -1218,10 +1321,15 @@ SR.renderer = (() => {
         if (sc.sx < -hw * 4 || sc.sx > canvas.width + hw * 4 ||
             sc.sy < -hh * 8 || sc.sy > canvas.height + hh * 12) continue;
 
-        if (t.zone && t.level > 0) drawZoneBuilding(sc.sx, sc.sy, hw, hh, t, x, y);
+        const hidden = SR.game.hiddenLayers || {};
+        if (t.zone && t.level > 0 && !hidden.zone) drawZoneBuilding(sc.sx, sc.sy, hw, hh, t, x, y);
         if (t.building) {
-          gridXFromScreenContext.x = x; gridXFromScreenContext.y = y;
-          drawSpecialBuilding(sc.sx, sc.sy, hw, hh, t);
+          const def = SR.BUILDINGS[t.building];
+          const cat = (def && def.category) || 'service';
+          if (!hidden[cat]) {
+            gridXFromScreenContext.x = x; gridXFromScreenContext.y = y;
+            drawSpecialBuilding(sc.sx, sc.sy, hw, hh, t);
+          }
         }
         if (t.onFire > 0) drawFire(sc.sx, sc.sy, hw, hh);
       }
@@ -1230,12 +1338,16 @@ SR.renderer = (() => {
     drawCitizens();         // #69 — small sprites near building bases
     drawBillboards();       // #63 — neon hoverboards on L3 commercial
     drawSearchlights();     // #64 — landmark spotlight beams at night
+    drawCongestion();       // R2-23
+    drawDistricts();        // R2-4
+    drawCoverage();          // R2-24
     drawHeatmap();
     drawSearchHighlight();
     drawSeasonOverlay();    // #60 — seasonal tint
     drawDayNightOverlay();
     drawWeather();          // #59 — rain / snow / fog above scene, below HUD
     drawParticles(performance.now());
+    drawRectMarquee();       // R2-39 mass-paint preview
     drawCursorHighlight();
     drawHoverLabel();
 

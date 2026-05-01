@@ -41,6 +41,9 @@ SR.game = (() => {
     weatherAuto: true,
     photoMode: false,
     aiUprisingMonths: 0,
+    ddosMonths: 0,         // R2-27 service buildings disabled while > 0
+    plagueMonths: 0,       // R2-29 approval drag while > 0
+    toxicSpills: [],       // R2-28 [{x, y, ticksLeft}]
     disasterHistory: [],
     lastRevenueExtra: 0,
     bookmarks: [null, null, null, null], // #72 — Shift+1..4
@@ -48,6 +51,13 @@ SR.game = (() => {
     a11y: { reducedMotion: false, largeText: false, palette: 'orange', haptics: true },
     cheatsEnabled: false,
     cryptoTokens: 0, // #8
+    // Districts: array of { id, name, color }; tile.district indexes into this.
+    districts: [],
+    nextDistrictId: 1,
+    activeDistrictId: 0,
+    // Building filter: set of category strings to hide ('zone', 'service', 'power', 'transit', 'landmark').
+    hiddenLayers: {},
+    coverageOverlay: false, // R2-24 toggle
   };
 
   // Legacy: some older code paths still read SR.game.taxRate. Provide a
@@ -151,11 +161,19 @@ SR.game = (() => {
     state.weatherAuto = true;
     state.photoMode = false;
     state.aiUprisingMonths = 0;
+    state.ddosMonths = 0;
+    state.plagueMonths = 0;
+    state.toxicSpills = [];
     state.disasterHistory = [];
     state.lastRevenueExtra = 0;
     state.bookmarks = [null, null, null, null];
     state.cryptoTokens = 0;
     state.cheatsEnabled = false;
+    state.districts = [];
+    state.nextDistrictId = 1;
+    state.activeDistrictId = 0;
+    state.hiddenLayers = {};
+    state.coverageOverlay = false;
     SR.grid.init(state.seed);
     let center = { x: SR.GRID_W / 2, y: SR.GRID_H / 2 };
     if (mode === 'starter') center = buildStarterCity();

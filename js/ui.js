@@ -64,6 +64,9 @@ SR.ui = (() => {
           case 'budget': openBudget(); break;
           case 'charts': openCharts(); break;
           case 'dashboard': openDashboard(); break;
+          case 'districts': SR.extras.openDistrictsModal(); break;
+          case 'filters': SR.extras.openFilterModal(); break;
+          case 'slots': SR.extras.openSlotsModal(); break;
           case 'scenarios': openScenarios(); break;
           case 'search': openSearch(); break;
           case 'heatmap': openHeatmapPicker(); break;
@@ -140,6 +143,7 @@ SR.ui = (() => {
     setRCI('rci-r', g.demand.r);
     setRCI('rci-c', g.demand.c);
     setRCI('rci-i', g.demand.i);
+    if (SR.extras && SR.extras.refreshQuestLog) SR.extras.refreshQuestLog();
   }
 
   function alert(msg, kind) {

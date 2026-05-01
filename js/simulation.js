@@ -223,11 +223,13 @@ SR.sim = (() => {
           const def = SR.BUILDINGS[t.building];
           if (!def) continue;
           if (def.pollution) polF[i] += def.pollution * 1.0;
-          if (def.range > 0) {
+          // R2-27 DDoS — service buildings (those with a coverage range) go silent
+          const ddosed = SR.game.ddosMonths > 0 && def.range > 0 && def.category === 'service';
+          if (def.range > 0 && !ddosed) {
             if (def.crimeRed > 0) spread(policeF, x, y, def.range, def.crimeRed);
             if (def.fireRed > 0) spread(fireF, x, y, def.range, def.fireRed);
-            if (def.capacity > 0 && (t.building === 'hospital')) spread(healthF, x, y, def.range, 1);
-            if (def.capacity > 0 && (t.building === 'school')) spread(eduF, x, y, def.range, 1);
+            if (def.capacity > 0 && (t.building === 'hospital' || t.building === 'cyberclinic' || t.building === 'university')) spread(healthF, x, y, def.range, 1);
+            if (def.capacity > 0 && (t.building === 'school' || t.building === 'university')) spread(eduF, x, y, def.range, 1);
             if (def.landBoost) spread(valueF, x, y, def.range, def.landBoost);
           }
         }
@@ -397,7 +399,7 @@ SR.sim = (() => {
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         const nt = SR.grid.get(x + dx, y + dy);
-        if (nt && (nt.road || nt.maglev || nt.subway)) return true;
+        if (nt && ((nt.road && !nt.frozen) || nt.maglev || nt.subway)) return true;
       }
     }
     return false;
@@ -585,6 +587,36 @@ SR.sim = (() => {
       SR.game.aiUprisingMonths--;
       if (SR.game.aiUprisingMonths === 0) SR.ui.alert('AI UPRISING ENDED', 'good');
     }
+    // R2-27 DDoS — countdown each month while service buildings are gimped
+    if (SR.game.ddosMonths > 0) {
+      SR.game.ddosMonths--;
+      if (SR.game.ddosMonths === 0) SR.ui.alert('SERVICES BACK ONLINE', 'good');
+    }
+    // R2-29 memetic plague — drag approval while active
+    if (SR.game.plagueMonths > 0) {
+      SR.game.plagueMonths--;
+      SR.game.approval = SR.utils.clamp((SR.game.approval || 50) - 2, 0, 100);
+      if (SR.game.plagueMonths === 0) SR.ui.alert('MEME WAVE PASSED', 'good');
+    }
+    // R2-28 toxic spills — bump pollution in radius for the duration
+    if (SR.game.toxicSpills && SR.game.toxicSpills.length) {
+      const remaining = [];
+      for (const s of SR.game.toxicSpills) {
+        for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+          const t = SR.grid.get(s.x + dx, s.y + dy);
+          if (t) t.pollution = SR.utils.clamp(t.pollution + 8, 0, 100);
+        }
+        s.ticksLeft--;
+        if (s.ticksLeft > 0) remaining.push(s);
+      }
+      SR.game.toxicSpills = remaining;
+    }
+    // R2-30 frozen roads — decrement, alerting on full thaw
+    let thawed = 0;
+    for (const t of SR.grid.tiles) {
+      if (t.frozen > 0) { t.frozen--; if (t.frozen === 0) thawed++; }
+    }
+    if (thawed > 30) SR.ui.alert(thawed + ' ROADS THAWED', 'good');
     if (SR.advisor) SR.advisor.tick();
     if (SR.ui && SR.ui.checkScenarioCompletion) SR.ui.checkScenarioCompletion();
     if (SR.extras && SR.extras.checkArcologyWin) SR.extras.checkArcologyWin();

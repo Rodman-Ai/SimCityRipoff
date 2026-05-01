@@ -37,12 +37,20 @@ SR.save = (() => {
         cryptoTokens: SR.game.cryptoTokens,
         disasterHistory: SR.game.disasterHistory,
         aiUprisingMonths: SR.game.aiUprisingMonths,
+        ddosMonths: SR.game.ddosMonths,
+        plagueMonths: SR.game.plagueMonths,
+        toxicSpills: SR.game.toxicSpills,
+        districts: SR.game.districts,
+        nextDistrictId: SR.game.nextDistrictId,
+        coverageOverlay: SR.game.coverageOverlay,
+        hiddenLayers: SR.game.hiddenLayers,
       },
       tiles: SR.grid.tiles.map(t => ({
         z: t.z, t: t.t, road: t.road, power: t.power ? 1 : 0, pipe: t.pipe ? 1 : 0,
         maglev: t.maglev ? 1 : 0, subway: t.subway ? 1 : 0,
         zone: t.zone, building: t.building, bx: t.bx, by: t.by, level: t.level,
         pop: t.pop, jobs: t.jobs,
+        district: t.district || 0, frozen: t.frozen || 0,
       })),
     };
   }
@@ -86,6 +94,13 @@ SR.save = (() => {
     SR.game.cryptoTokens = data.game.cryptoTokens || 0;
     SR.game.disasterHistory = data.game.disasterHistory || [];
     SR.game.aiUprisingMonths = data.game.aiUprisingMonths || 0;
+    SR.game.ddosMonths = data.game.ddosMonths || 0;
+    SR.game.plagueMonths = data.game.plagueMonths || 0;
+    SR.game.toxicSpills = data.game.toxicSpills || [];
+    SR.game.districts = data.game.districts || [];
+    SR.game.nextDistrictId = data.game.nextDistrictId || (SR.game.districts.length + 1);
+    SR.game.coverageOverlay = !!data.game.coverageOverlay;
+    SR.game.hiddenLayers = data.game.hiddenLayers || {};
     SR.game.cityName = (data.meta && data.meta.cityName) || SR.game.cityName || 'Neo-Rodman';
 
     // Rebuild blank grid then restore
@@ -99,6 +114,8 @@ SR.save = (() => {
       t.power = !!s.power; t.pipe = !!s.pipe;
       t.maglev = !!s.maglev;
       t.subway = !!s.subway;
+      t.district = s.district | 0;
+      t.frozen = s.frozen | 0;
       t.zone = s.zone || null;
       t.building = s.building || null;
       t.bx = s.bx | 0; t.by = s.by | 0;

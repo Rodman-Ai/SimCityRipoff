@@ -51,6 +51,9 @@
       <button class="tool" data-tool="bulldoze" title="Bulldoze (B)">
         <span class="tg">✕</span><span class="tn">Demolish</span>
       </button>
+      <button class="tool" data-tool="district" title="Paint District (open Districts modal first)">
+        <span class="tg" style="color:#ff8a1f">▣</span><span class="tn">Distr</span>
+      </button>
     </div>
     <div class="tool-group">
       <button class="tool" data-tool="road" title="Road (R)">
@@ -203,6 +206,7 @@
     <canvas id="overlay"></canvas>
 
     <div id="cursor-info" class="hud-chip"></div>
+    <div id="quest-log" class="hud-chip hidden"></div>
 
     <div id="alerts"></div>
 
@@ -245,6 +249,9 @@
       <button class="row-btn" data-action="budget">Budget &amp; Taxes</button>
       <button class="row-btn" data-action="charts">Charts &amp; Stats</button>
       <button class="row-btn" data-action="dashboard">City Health Dashboard</button>
+      <button class="row-btn" data-action="districts">Districts…</button>
+      <button class="row-btn" data-action="filters">Layers &amp; Filters…</button>
+      <button class="row-btn" data-action="slots">Save Slots…</button>
       <button class="row-btn" data-action="scenarios">Scenarios</button>
       <button class="row-btn" data-action="search">Find Building…</button>
       <button class="row-btn" data-action="heatmap">Heat-map Overlay</button>

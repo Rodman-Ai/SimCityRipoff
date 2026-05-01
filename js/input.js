@@ -4,9 +4,10 @@
 SR.input = (() => {
   let canvas;
   let dragging = false;
-  let dragMode = null; // 'pan' | 'paint'
+  let dragMode = null; // 'pan' | 'paint' | 'rect'
   let lastX = 0, lastY = 0;
   let lastTileX = -1, lastTileY = -1; // last tile we applied a paint to
+  let rectStartX = -1, rectStartY = -1; // R2-39 rectangle paint origin
   let pinchStartDist = 0;
   let pinchStartZoom = 1;
   let pinchCenter = null;
@@ -73,7 +74,15 @@ SR.input = (() => {
     const p = localXY(e);
     lastX = p.x; lastY = p.y;
     updateCursor(p.x, p.y);
-    if (e.button === 2 || e.shiftKey) {
+    if (e.button === 2) {
+      dragMode = 'pan';
+      dragging = true;
+    } else if (e.shiftKey && SR.tools.current !== 'select') {
+      // R2-39 Shift+drag fills a rectangle on release.
+      dragMode = 'rect';
+      dragging = true;
+      rectStartX = cursor.x; rectStartY = cursor.y;
+    } else if (e.shiftKey) {
       dragMode = 'pan';
       dragging = true;
     } else {
@@ -101,6 +110,12 @@ SR.input = (() => {
   }
   function onMouseUp() {
     if (dragMode === 'paint') SR.tools.endAction();
+    if (dragMode === 'rect' && rectStartX >= 0) {
+      SR.tools.beginAction();
+      SR.tools.applyRect(rectStartX, rectStartY, cursor.x, cursor.y);
+      SR.tools.endAction();
+    }
+    rectStartX = rectStartY = -1;
     dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1;
   }
 
@@ -234,5 +249,10 @@ SR.input = (() => {
     }
   }
 
-  return { init, cursor };
+  function getRectDrag() {
+    if (dragMode !== 'rect' || rectStartX < 0) return null;
+    return { x0: rectStartX, y0: rectStartY, x1: cursor.x, y1: cursor.y };
+  }
+
+  return { init, cursor, getRectDrag };
 })();

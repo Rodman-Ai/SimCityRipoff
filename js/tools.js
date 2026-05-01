@@ -99,6 +99,7 @@ SR.tools = (() => {
       case 'pipe': return 5;
       case 'maglev': return 25;
       case 'subway': return 20;
+      case 'district': return 0;     // R2-1 painting is free, just tagging
       case 'zone_r':
       case 'zone_c':
       case 'zone_i': return 10;
@@ -142,6 +143,7 @@ SR.tools = (() => {
       case 'pipe': return doPipe(x, y);
       case 'maglev': return doMaglev(x, y);
       case 'subway': return doSubway(x, y);
+      case 'district': return doDistrict(x, y);
       case 'zone_r': return doZone(x, y, 'r');
       case 'zone_c': return doZone(x, y, 'c');
       case 'zone_i': return doZone(x, y, 'i');
@@ -192,6 +194,22 @@ SR.tools = (() => {
     const cost = getCost('subway');
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
     if (SR.grid.setSubway(x, y)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
+  }
+
+  // R2-1 paint a district id onto a tile. activeDistrictId === 0 erases.
+  function doDistrict(x, y) {
+    SR.grid.setDistrict(x, y, SR.game.activeDistrictId | 0);
+  }
+
+  // R2-39 Mass rectangle paint — apply current tool to every tile in
+  // the rectangle (x0,y0)..(x1,y1).
+  function applyRect(x0, y0, x1, y1) {
+    if (current === 'select') return;
+    const ax = Math.min(x0, x1), bx = Math.max(x0, x1);
+    const ay = Math.min(y0, y1), by = Math.max(y0, y1);
+    for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) {
+      applyAt(x, y);
+    }
   }
 
   function doPower(x, y) {
@@ -266,7 +284,7 @@ SR.tools = (() => {
   }
 
   return {
-    select, applyAt, getCost,
+    select, applyAt, applyRect, getCost,
     beginAction, endAction, undo, clearUndo,
     get current() { return current; },
     get canUndo() { return undoStack.length > 0; },

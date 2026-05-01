@@ -209,6 +209,16 @@ button:focus { outline: none; }
   bottom: 56px; left: 12px;
   pointer-events: none;
 }
+/* R2-42 Quest-log side chip */
+#quest-log {
+  position: absolute;
+  bottom: 88px; left: 12px;
+  width: 220px;
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1.3;
+}
+#quest-log .bar { margin-top: 4px; height: 4px; }
 .hud-chip {
   background: rgba(10,5,2,0.8);
   border: 1px solid var(--line-2);

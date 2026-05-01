@@ -43,6 +43,8 @@ SR.grid = (() => {
       level: 0, pop: 0, jobs: 0,
       pollution: 0, crime: 0, land: 30,
       onFire: 0,
+      district: 0,    // 0 = none, otherwise SR.game.districts[id-1]
+      frozen: 0,      // black-ice winter — months remaining where this road is impassable
     };
   }
 
@@ -166,6 +168,14 @@ SR.grid = (() => {
     return true;
   }
 
+  // Districts paint over any tile (water or ground) — purely tagging.
+  function setDistrict(x, y, id) {
+    const t = get(x, y);
+    if (!t) return false;
+    t.district = id | 0;
+    return true;
+  }
+
   // Place a building footprint. Returns true on success.
   function place(x, y, key) {
     const def = SR.BUILDINGS[key];
@@ -269,7 +279,7 @@ SR.grid = (() => {
 
   return {
     init, get, idx, inBounds, demolish, place,
-    setRoad, setPower, setPipe, setMaglev, setSubway, setZone,
+    setRoad, setPower, setPipe, setMaglev, setSubway, setZone, setDistrict,
     size, snapshot,
     get tiles() { return tiles; },
     set tiles(v) { tiles = v; W = SR.GRID_W; H = SR.GRID_H; },

@@ -155,6 +155,13 @@ Open `http://localhost:8000` and click **JACK IN**.
   residential tile.
 - **Demolition debris** — 12-particle puff with gravity bursts every
   time you bulldoze something.
+- **Round 2 — Wave R2-1 (8 features)** — paintable named **Districts**
+  with stats panel and color overlay, **traffic-congestion tint** on busy
+  roads, **service-coverage outline overlay**, 5 new disasters (Tornado,
+  DDoS, Toxic Spill, Memetic Plague, Black-Ice Winter), **Shift+drag
+  rectangle paint** for any tool, **5 named save slots**, **quest-log
+  HUD chip** for the active scenario, and a **building-layer filter**
+  modal to hide categories for screenshots.
 - **Wave 4 + 5 sweep** — 9 specialty buildings (casino, prison, recycling
   plant, cyberware clinic, convention centre, net-cathedral, drone
   airfield, rooftop solar, disaster bunker), 4 transit add-ons (cable car,

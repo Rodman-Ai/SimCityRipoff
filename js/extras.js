@@ -366,6 +366,164 @@ SR.extras = (() => {
     SR.renderer.flashScreen(140, 'rgba(255,170,31,0.55)');
   }
 
+  // ---- R2-1..R2-5 Districts -------------------------------------------
+  const DISTRICT_COLORS = ['#ff6a00', '#3ad7ff', '#3aff7a', '#ff2acc', '#ffd23a', '#9adfff', '#ff8a8a', '#aa6aff'];
+  function newDistrict(name) {
+    const g = SR.game;
+    const id = g.nextDistrictId++;
+    const color = DISTRICT_COLORS[(id - 1) % DISTRICT_COLORS.length];
+    const d = { id, name: name || ('District ' + id), color };
+    g.districts.push(d);
+    g.activeDistrictId = id;
+    return d;
+  }
+  function districtStats(id) {
+    let pop = 0, jobs = 0, pol = 0, n = 0, lvl = 0;
+    for (const t of SR.grid.tiles) if (t.district === id) {
+      n++;
+      pop += t.pop || 0; jobs += t.jobs || 0;
+      pol += t.pollution || 0; lvl += t.level || 0;
+    }
+    return { tiles: n, pop, jobs, avgPol: n ? Math.round(pol / n) : 0, avgLvl: n ? (lvl / n).toFixed(1) : '0' };
+  }
+  function openDistrictsModal() {
+    const g = SR.game;
+    const list = g.districts || [];
+    let html = '<div class="section-title">DISTRICTS</div>'
+      + '<p style="color:var(--text-d);font-size:12px">Pick the active district, then choose the District tool and paint over the map. Set to "OFF" to erase.</p>';
+    html += '<div class="kv"><span class="k">Active</span><span class="v">'
+      + '<select id="district-active" style="background:#0a0504;color:var(--orange-2);border:1px solid var(--line-2);padding:2px">'
+      + '<option value="0">OFF (erase)</option>'
+      + list.map(d => `<option value="${d.id}" ${g.activeDistrictId === d.id ? 'selected' : ''}>${d.name}</option>`).join('')
+      + '</select></span></div>';
+    html += '<div class="btn-row"><button class="pri" id="dist-add">+ NEW DISTRICT</button></div>';
+    if (list.length) {
+      html += '<div class="section-title">STATS</div>';
+      for (const d of list) {
+        const s = districtStats(d.id);
+        html += `<div class="kv"><span class="k">
+            <span style="display:inline-block;width:10px;height:10px;background:${d.color};margin-right:6px"></span>
+            <input data-rename="${d.id}" value="${d.name}" style="width:140px;background:#0a0504;color:${d.color};border:1px solid var(--line-2)">
+          </span><span class="v">${s.tiles}t · pop ${SR.utils.fmt(s.pop)} · jobs ${SR.utils.fmt(s.jobs)} · pol ${s.avgPol} · L${s.avgLvl}</span></div>`;
+      }
+    }
+    SR.ui.openModal('DISTRICTS', html);
+    setTimeout(() => {
+      document.getElementById('district-active').addEventListener('change', e => {
+        g.activeDistrictId = parseInt(e.target.value, 10) | 0;
+        SR.tools.select('district');
+      });
+      const add = document.getElementById('dist-add');
+      if (add) add.addEventListener('click', () => {
+        newDistrict();
+        SR.ui.closeModal();
+        openDistrictsModal();
+      });
+      document.querySelectorAll('[data-rename]').forEach(el => {
+        el.addEventListener('input', e => {
+          const id = parseInt(el.dataset.rename, 10);
+          const d = g.districts.find(x => x.id === id);
+          if (d) d.name = e.target.value || d.name;
+        });
+      });
+    }, 0);
+  }
+
+  // ---- R2-41 Multiple save slots --------------------------------------
+  const SLOT_PREFIX = 'simrodman.save.slot.';
+  function listSlots() {
+    const out = [];
+    for (let i = 1; i <= 5; i++) {
+      try {
+        const raw = localStorage.getItem(SLOT_PREFIX + i);
+        if (raw) {
+          const data = JSON.parse(raw);
+          out.push({ slot: i, name: data.meta && data.meta.cityName, when: data.meta && data.meta.date });
+        } else {
+          out.push({ slot: i, name: null });
+        }
+      } catch (e) { out.push({ slot: i, name: null }); }
+    }
+    return out;
+  }
+  function saveToSlot(i) {
+    try {
+      localStorage.setItem(SLOT_PREFIX + i, JSON.stringify(SR.save.snapshot()));
+      SR.ui.alert('SAVED → SLOT ' + i, 'good');
+    } catch (e) { SR.ui.alert('SAVE FAILED', 'bad'); }
+  }
+  function loadFromSlot(i) {
+    try {
+      const raw = localStorage.getItem(SLOT_PREFIX + i);
+      if (!raw) { SR.ui.alert('SLOT ' + i + ' EMPTY', 'bad'); return; }
+      if (SR.save.restoreFrom(JSON.parse(raw))) SR.ui.alert('LOADED ← SLOT ' + i, 'good');
+    } catch (e) { SR.ui.alert('LOAD FAILED', 'bad'); }
+  }
+  function openSlotsModal() {
+    let html = '<div class="section-title">SAVE SLOTS</div>'
+      + '<p style="color:var(--text-d);font-size:12px">Five slots, separate from the auto-save.</p>';
+    for (const s of listSlots()) {
+      const dt = s.when ? new Date(s.when).toLocaleString() : '—';
+      const label = s.name ? `${s.name} <span style="color:var(--text-d)">${dt}</span>` : '<span style="color:var(--text-d)">empty</span>';
+      html += `<div class="kv"><span class="k">Slot ${s.slot} — ${label}</span><span class="v">
+        <button data-slot-save="${s.slot}">SAVE</button>
+        <button data-slot-load="${s.slot}" ${s.name ? '' : 'disabled'}>LOAD</button>
+      </span></div>`;
+    }
+    SR.ui.openModal('SAVE SLOTS', html);
+    setTimeout(() => {
+      document.querySelectorAll('[data-slot-save]').forEach(b =>
+        b.addEventListener('click', () => { saveToSlot(parseInt(b.dataset.slotSave, 10)); SR.ui.closeModal(); openSlotsModal(); }));
+      document.querySelectorAll('[data-slot-load]').forEach(b =>
+        b.addEventListener('click', () => { loadFromSlot(parseInt(b.dataset.slotLoad, 10)); SR.ui.closeModal(); }));
+    }, 0);
+  }
+
+  // ---- R2-43 Building filter ------------------------------------------
+  function openFilterModal() {
+    const h = SR.game.hiddenLayers || (SR.game.hiddenLayers = {});
+    const cats = ['zone', 'service', 'power', 'water', 'landmark'];
+    const html = '<div class="section-title">BUILDING FILTER</div>'
+      + '<p style="color:var(--text-d);font-size:12px">Hide categories on the main view (handy for screenshots).</p>'
+      + cats.map(c =>
+          `<label style="display:block;padding:4px 0">
+            <input type="checkbox" data-filter="${c}" ${h[c] ? 'checked' : ''} style="accent-color:#ff6a00"> Hide ${c.toUpperCase()}
+          </label>`).join('')
+      + '<div class="btn-row"><button id="filter-clear">SHOW ALL</button>'
+      + '<button class="pri" id="filter-coverage">' + (SR.game.coverageOverlay ? '✓ ' : '') + 'TOGGLE COVERAGE OUTLINES</button></div>';
+    SR.ui.openModal('LAYERS / FILTERS', html);
+    setTimeout(() => {
+      document.querySelectorAll('[data-filter]').forEach(c => {
+        c.addEventListener('change', () => { h[c.dataset.filter] = c.checked; });
+      });
+      const cl = document.getElementById('filter-clear');
+      if (cl) cl.addEventListener('click', () => { SR.game.hiddenLayers = {}; SR.ui.closeModal(); });
+      const cov = document.getElementById('filter-coverage');
+      if (cov) cov.addEventListener('click', () => {
+        SR.game.coverageOverlay = !SR.game.coverageOverlay;
+        SR.ui.closeModal(); openFilterModal();
+      });
+    }, 0);
+  }
+
+  // ---- R2-42 Quest-log side panel -------------------------------------
+  // Minimal: a small chip in the bottom-left listing the active scenario.
+  function refreshQuestLog() {
+    const el = document.getElementById('quest-log');
+    if (!el) return;
+    const key = SR.game.activeScenario;
+    if (!key || !SR.SCENARIOS) { el.classList.add('hidden'); return; }
+    const s = SR.SCENARIOS.find(x => x.key === key);
+    if (!s) { el.classList.add('hidden'); return; }
+    const months = (SR.game.year - SR.game.scenarioStartYear) * 12 + (SR.game.month - SR.game.scenarioStartMonth);
+    const left = Math.max(0, s.deadlineMonths - months);
+    const prog = (s.progress(SR.game) * 100) | 0;
+    el.classList.remove('hidden');
+    el.innerHTML = '<div style="font-size:11px;letter-spacing:2px;color:#ffaa1f">★ ' + s.name + '</div>'
+      + '<div style="font-size:11px;color:var(--text-d)">' + left + ' months · ' + prog + '%</div>'
+      + '<div class="bar"><span style="width:' + prog + '%"></span></div>';
+  }
+
   return {
     saveBookmark, recallBookmark,
     openLeaderboard, recordCity,
@@ -378,5 +536,9 @@ SR.extras = (() => {
     watchKonami, enableCheats,
     exportAchievements,
     fireworks,
+    openDistrictsModal, newDistrict, districtStats,
+    openSlotsModal, listSlots, saveToSlot, loadFromSlot,
+    openFilterModal,
+    refreshQuestLog,
   };
 })();
