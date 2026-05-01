@@ -64,6 +64,16 @@
     // Throttled minimap render
     setInterval(() => SR.minimap.render(), 600);
 
+    // #67 Ambient drone flyovers — one every 8-14 s
+    function scheduleDrone() {
+      const wait = 8000 + Math.random() * 6000;
+      setTimeout(() => {
+        if (SR.game.population > 50 && SR.renderer && SR.renderer.spawnDrone) SR.renderer.spawnDrone();
+        scheduleDrone();
+      }, wait);
+    }
+    scheduleDrone();
+
     // Game loop
     let last = performance.now();
     function loop(now) {

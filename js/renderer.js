@@ -62,6 +62,42 @@ SR.renderer = (() => {
     });
   }
 
+  // #67 Drone flyover — straight line across the world, slow, blinking
+  function spawnDrone() {
+    const W = SR.GRID_W, H = SR.GRID_H;
+    // Pick two opposite edges
+    const side = Math.random();
+    let fx, fy, tx, ty;
+    if (side < 0.5) { // east → west
+      fx = W + 4; fy = Math.random() * H;
+      tx = -4;     ty = Math.random() * H;
+    } else {           // north → south
+      fx = Math.random() * W; fy = -4;
+      tx = Math.random() * W; ty = H + 4;
+    }
+    addParticle({
+      kind: 'drone',
+      fromX: fx, fromY: fy, toX: tx, toY: ty,
+      life: 12000,
+    });
+  }
+
+  // #70 Demolition debris — small puff of pixels at a tile
+  function spawnDebris(tx, ty) {
+    for (let i = 0; i < 12; i++) {
+      addParticle({
+        kind: 'debris', tx, ty,
+        ox: (Math.random() - 0.5) * 4,
+        oy: -4 - Math.random() * 4,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: -1.6 - Math.random() * 0.8,
+        gravity: 0.06,
+        life: 700 + Math.random() * 400,
+        color: ['#a06030', '#7a4818', '#503010', '#ff8a3a'][i & 3],
+      });
+    }
+  }
+
   function flashScreen(ms, color) {
     flashUntil = performance.now() + (ms || 200);
     if (color) flashColor = color;
@@ -115,6 +151,37 @@ SR.renderer = (() => {
         ctx.shadowBlur = 4;
         ctx.fillRect((sc.sx | 0) - 1, (sc.sy | 0) - 1, 3, 3);
         ctx.shadowBlur = 0;
+      } else if (p.kind === 'drone') {
+        // Slow straight-line traversal at altitude
+        const lerp = (a, b, k) => a + (b - a) * k;
+        const dx = lerp(p.fromX, p.toX, t);
+        const dy = lerp(p.fromY, p.toY, t);
+        const sc = cam.tileToScreen(dx, dy, 0);
+        const altY = sc.sy - 24 * zoom; // hover above ground
+        const blink = ((frame >> 2) & 1);
+        ctx.fillStyle = blink ? '#ff2acc' : '#3ad7ff';
+        ctx.shadowColor = blink ? '#ff2acc' : '#3ad7ff';
+        ctx.shadowBlur = 6;
+        // Tiny X-shape drone body
+        ctx.fillRect((sc.sx | 0) - 2, (altY | 0), 4, 1);
+        ctx.fillRect((sc.sx | 0), (altY | 0) - 2, 1, 4);
+        ctx.shadowBlur = 0;
+        // Faint shadow on ground
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(sc.sx, sc.sy, 3 * zoom, 1.5 * zoom, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.kind === 'debris') {
+        // Ballistic — apply gravity each step
+        p.vx *= 0.96;
+        p.vy += p.gravity || 0.05;
+        p.ox += p.vx;
+        p.oy += p.vy;
+        const sc = cam.tileToScreen(p.tx, p.ty, 0);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = fade;
+        ctx.fillRect((sc.sx + p.ox * zoom) | 0, (sc.sy + p.oy * zoom) | 0, 2, 2);
+        ctx.globalAlpha = 1;
       }
     }
   }
@@ -720,6 +787,184 @@ SR.renderer = (() => {
     ctx.restore();
   }
 
+  // ---- Wave-2 visual passes ----
+
+  // #59 Weather — full-viewport particle overlay
+  function drawWeather() {
+    const w = SR.game.weather;
+    if (!w) return;
+    const W = canvas.width, H = canvas.height;
+    if (w === 'rain') {
+      ctx.strokeStyle = 'rgba(170,210,255,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const offset = (frame * 18) % 24;
+      for (let i = 0; i < 110; i++) {
+        const x = ((i * 911 + frame * 7) % W);
+        const y = (((i * 53) + offset * 11) % H);
+        ctx.moveTo(x, y); ctx.lineTo(x - 2, y + 8);
+      }
+      ctx.stroke();
+    } else if (w === 'snow') {
+      ctx.fillStyle = 'rgba(220,235,255,0.7)';
+      for (let i = 0; i < 80; i++) {
+        const x = ((i * 631 + frame * 1.4) % W);
+        const y = ((i * 277 + frame * 0.9) % H);
+        const sway = Math.sin(frame * 0.04 + i) * 1.5;
+        ctx.fillRect((x + sway) | 0, y | 0, 2, 2);
+      }
+    } else if (w === 'fog') {
+      ctx.fillStyle = 'rgba(120,110,140,0.18)';
+      ctx.fillRect(0, 0, W, H);
+      // Drifting fog bands
+      ctx.fillStyle = 'rgba(180,170,200,0.10)';
+      for (let i = 0; i < 4; i++) {
+        const y = ((i * 137 + frame * 0.5) % H);
+        ctx.fillRect(0, y, W, 24);
+      }
+    }
+  }
+
+  // #60 Seasonal palette tint — applied as an overlay after the world is drawn
+  function getSeason() {
+    const m = SR.game.month | 0;
+    if (m < 3) return 'winter';
+    if (m < 6) return 'spring';
+    if (m < 9) return 'summer';
+    return 'autumn';
+  }
+  function drawSeasonOverlay() {
+    const s = getSeason();
+    const W = canvas.width, H = canvas.height;
+    let color = null;
+    if (s === 'winter') color = 'rgba(140,170,210,0.10)';
+    else if (s === 'autumn') color = 'rgba(255,140,40,0.06)';
+    else if (s === 'spring') color = 'rgba(120,255,160,0.04)';
+    else color = null; // summer = no tint
+    if (color) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+  }
+
+  // #63 Holographic billboards on level-3 commercial zones
+  function drawBillboards() {
+    const cam = SR.camera;
+    const zoom = cam.getZoom();
+    if (zoom < 0.7) return; // hide when zoomed way out
+    const b = viewBounds();
+    const colors = ['#ff2acc', '#3ad7ff', '#ffd23a', '#3aff7a'];
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || t.zone !== 'c' || t.level < 3) continue;
+        const seed = ((x * 1234567) ^ (y * 7654321)) >>> 0;
+        const color = colors[seed & 3];
+        const sc = cam.tileToScreen(x, y, t.z);
+        // Hover above the building
+        const cy = sc.sy - 56 * zoom - ((seed >> 8) & 7);
+        const phase = (frame * 0.06 + (seed & 0xff) * 0.01) % (Math.PI * 2);
+        const w = 14 * zoom * (0.6 + 0.4 * Math.cos(phase));
+        const h = 4 * zoom;
+        ctx.save();
+        ctx.globalAlpha = 0.65 + 0.35 * Math.sin(frame * 0.1 + (seed & 0xf));
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.fillRect(sc.sx - w / 2, cy - h / 2, w, h);
+        // Tiny scrolling glyph
+        ctx.fillStyle = '#000';
+        const dotX = sc.sx - w / 2 + ((frame * 1.5) % w);
+        ctx.fillRect(dotX | 0, (cy - h / 4) | 0, 1, 2);
+        ctx.restore();
+      }
+    }
+  }
+
+  // #64 Searchlight beams on landmark buildings at night
+  function drawSearchlights() {
+    if (darkness < 0.4) return;
+    const cam = SR.camera;
+    const zoom = cam.getZoom();
+    const hw = (cam.TILE_W / 2) * zoom;
+    const hh = (cam.TILE_H / 2) * zoom;
+    const b = viewBounds();
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || !t.building || t.bx !== x || t.by !== y) continue;
+        const def = SR.BUILDINGS[t.building];
+        if (!def || def.category !== 'landmark') continue;
+        const sz = def.size;
+        const sc = cam.tileToScreen(x + (sz - 1) / 2, y + (sz - 1) / 2, t.z);
+        const top = sc.sy - 80 * zoom; // approx top of antenna
+        // Two rotating cones (offset 180°)
+        for (let k = 0; k < 2; k++) {
+          const angle = frame * 0.018 + k * Math.PI;
+          const len = 220 * zoom;
+          const spread = 0.18;
+          const x0 = sc.sx, y0 = top;
+          const x1 = x0 + Math.cos(angle - spread) * len;
+          const y1 = y0 + Math.sin(angle - spread) * len;
+          const x2 = x0 + Math.cos(angle + spread) * len;
+          const y2 = y0 + Math.sin(angle + spread) * len;
+          const grad = ctx.createLinearGradient(x0, y0, (x1 + x2) / 2, (y1 + y2) / 2);
+          grad.addColorStop(0, 'rgba(255,210,80,0.45)');
+          grad.addColorStop(1, 'rgba(255,210,80,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // #69 Citizen avatar sprites — tiny dots near the base of L2+ residentials
+  function drawCitizens() {
+    const cam = SR.camera;
+    const zoom = cam.getZoom();
+    if (zoom < 0.85) return;
+    const b = viewBounds();
+    const hh = (cam.TILE_H / 2) * zoom;
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || t.zone !== 'r' || t.level < 2) continue;
+        const sc = cam.tileToScreen(x, y, t.z);
+        const seed = ((x * 1597) ^ (y * 1009)) >>> 0;
+        const count = t.level - 1; // 1 at L2, 2 at L3
+        for (let i = 0; i < count; i++) {
+          const phase = ((frame * 0.012) + ((seed + i * 31) & 0xff) * 0.0247) % 1;
+          const offX = (Math.sin(phase * Math.PI * 2) * 8 - 4) * zoom;
+          const offY = (Math.cos(phase * Math.PI * 2) * 4) * zoom + hh * 0.4;
+          ctx.fillStyle = ['#ffd28a', '#3ad7ff', '#3aff7a', '#ff8a8a'][(seed + i) & 3];
+          ctx.fillRect((sc.sx + offX) | 0, (sc.sy + offY) | 0, 1, 2);
+        }
+      }
+    }
+  }
+
+  // #62 Photo capture — pull the canvas to a downloadable PNG
+  function capturePNG() {
+    try {
+      const link = document.createElement('a');
+      link.download = 'simrodman-' + Date.now() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      return true;
+    } catch (e) {
+      console.warn('capture failed', e);
+      return false;
+    }
+  }
+
   // Heatmap overlay (#74) — translucent tile-by-tile color over the main view
   function drawHeatmap() {
     const mode = SR.game.heatmap;
@@ -888,9 +1133,14 @@ SR.renderer = (() => {
       }
     }
 
+    drawCitizens();         // #69 — small sprites near building bases
+    drawBillboards();       // #63 — neon hoverboards on L3 commercial
+    drawSearchlights();     // #64 — landmark spotlight beams at night
     drawHeatmap();
     drawSearchHighlight();
+    drawSeasonOverlay();    // #60 — seasonal tint
     drawDayNightOverlay();
+    drawWeather();          // #59 — rain / snow / fog above scene, below HUD
     drawParticles(performance.now());
     drawCursorHighlight();
     drawHoverLabel();
@@ -1052,6 +1302,8 @@ SR.renderer = (() => {
 
   return {
     init, resize, render, triggerGlitch, getDarkness,
-    spawnSmoke, spawnFloater, spawnVehicle, flashScreen, clearParticles,
+    spawnSmoke, spawnFloater, spawnVehicle, spawnDrone, spawnDebris,
+    flashScreen, clearParticles,
+    capturePNG,
   };
 })();

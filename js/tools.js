@@ -144,6 +144,7 @@ SR.tools = (() => {
       if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
       spend(cost);
       SR.audio.sfx.bulldoze();
+      if (SR.renderer && SR.renderer.spawnDebris) SR.renderer.spawnDebris(x, y);
       SR.sim.markDirty();
     }
   }

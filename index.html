@@ -39,6 +39,7 @@
       <button data-speed="3" title="Ultra" class="spd">&#9658;&#9658;&#9658;</button>
     </div>
     <button id="undo-btn" class="icon-btn" title="Undo (Ctrl+Z)">&#x21B6;</button>
+    <button id="photo-btn" class="icon-btn" title="Photo mode">&#x1F4F7;</button>
     <button id="menu-btn" class="icon-btn" title="Menu">&#9776;</button>
   </header>
 
@@ -214,6 +215,12 @@
 
   <div id="scanlines" aria-hidden="true"></div>
   <div id="vignette" aria-hidden="true"></div>
+
+  <div id="photo-bar" class="hidden">
+    <span class="photo-pill">PHOTO MODE</span>
+    <button id="photo-capture" class="primary-btn" style="padding:6px 14px;font-size:14px">CAPTURE PNG</button>
+    <button id="photo-exit" class="primary-btn" style="padding:6px 14px;font-size:14px">EXIT</button>
+  </div>
 
 </div>
 

@@ -139,6 +139,22 @@ Open `http://localhost:8000` and click **JACK IN**.
 - **Keymap overlay** — press `?` to see every shortcut.
 - **Long-press to undo** — hold a tap for 600 ms on mobile to undo the
   current placement.
+- **Weather** — rain, snow, and fog overlays auto-cycle per season (winter
+  snow/fog, summer rain, autumn fog/rain).
+- **Seasonal tint** — palette shifts subtly with the calendar quarter
+  (cool winter, warm autumn, neutral spring/summer).
+- **Photo mode** — 📷 button in the topbar pauses time, hides the HUD,
+  and exposes a CAPTURE PNG button to download the framed shot.
+- **Holographic billboards** — neon hover-screens animate above every
+  level-3 commercial tower at zoom ≥ 0.7.
+- **Landmark searchlights** — Megacorp Tower, Arcology, and Plaza shine
+  rotating spotlight cones at night.
+- **Drone flyovers** — small blinking drones traverse the city every
+  8–14 s with a faint ground shadow.
+- **Citizen sprites** — pedestrian dots wander the base of every level-2+
+  residential tile.
+- **Demolition debris** — 12-particle puff with gravity bursts every
+  time you bulldoze something.
 - **No build step, no dependencies** — pure HTML, CSS, and vanilla JS. Open
   the file, play the game.
 

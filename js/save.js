@@ -28,6 +28,8 @@ SR.save = (() => {
         scenarioStartYear: SR.game.scenarioStartYear,
         scenarioStartMonth: SR.game.scenarioStartMonth,
         debtMonths: SR.game.debtMonths,
+        weather: SR.game.weather,
+        weatherAuto: SR.game.weatherAuto,
       },
       tiles: SR.grid.tiles.map(t => ({
         z: t.z, t: t.t, road: t.road, power: t.power ? 1 : 0, pipe: t.pipe ? 1 : 0,
@@ -67,6 +69,9 @@ SR.save = (() => {
     SR.game.scenarioStartMonth = data.game.scenarioStartMonth || 0;
     SR.game.debtMonths = data.game.debtMonths || 0;
     SR.game.gameOver = null;
+    SR.game.weather = data.game.weather || null;
+    SR.game.weatherAuto = data.game.weatherAuto !== false;
+    SR.game.photoMode = false;
     SR.game.cityName = (data.meta && data.meta.cityName) || SR.game.cityName || 'Neo-Rodman';
 
     // Rebuild blank grid then restore

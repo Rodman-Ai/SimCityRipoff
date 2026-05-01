@@ -28,6 +28,27 @@ SR.ui = (() => {
     document.getElementById('undo-btn').addEventListener('click', () => {
       SR.tools.undo();
     });
+
+    // Photo mode toggle (#62)
+    const photoBtn = document.getElementById('photo-btn');
+    const photoBar = document.getElementById('photo-bar');
+    const photoCap = document.getElementById('photo-capture');
+    const photoExit = document.getElementById('photo-exit');
+    function setPhotoMode(on) {
+      SR.game.photoMode = !!on;
+      document.body.classList.toggle('photo-mode', !!on);
+      photoBar.classList.toggle('hidden', !on);
+      // Pause when entering photo mode so the shot is stable
+      if (on) { SR.game._prevSpeed = SR.game.speed; SR.game.setSpeed(0); }
+      else if (SR.game._prevSpeed != null) { SR.game.setSpeed(SR.game._prevSpeed); SR.game._prevSpeed = null; }
+      // Trigger a resize on next frame so the canvas refits to the full window
+      setTimeout(() => SR.renderer.resize(), 30);
+    }
+    photoBtn.addEventListener('click', () => setPhotoMode(!SR.game.photoMode));
+    photoExit.addEventListener('click', () => setPhotoMode(false));
+    photoCap.addEventListener('click', () => {
+      if (SR.renderer.capturePNG()) alert('PNG SAVED', 'good');
+    });
     document.querySelectorAll('[data-close]').forEach(b => {
       b.addEventListener('click', () => {
         document.getElementById(b.dataset.close).classList.add('hidden');

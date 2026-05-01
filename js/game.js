@@ -37,6 +37,9 @@ SR.game = (() => {
     scenarioStartMonth: 0,
     search: '',
     heatmap: null, // null | 'pollution' | 'crime' | 'value' | 'density'
+    weather: null, // null | 'rain' | 'snow' | 'fog'
+    weatherAuto: true,
+    photoMode: false,
   };
 
   // Legacy: some older code paths still read SR.game.taxRate. Provide a
@@ -52,6 +55,20 @@ SR.game = (() => {
   const SPEED_RATES = [0, 0.4, 1.6, 4.0];
 
   let monthAccumulator = 0;
+
+  // Season-driven weather distribution — month 0..11 → null|rain|snow|fog
+  function pickWeather(month) {
+    const r = Math.random();
+    if (month < 3) {        // winter
+      return r < 0.30 ? 'snow' : r < 0.45 ? 'fog' : null;
+    } else if (month < 6) { // spring
+      return r < 0.22 ? 'rain' : r < 0.32 ? 'fog' : null;
+    } else if (month < 9) { // summer
+      return r < 0.18 ? 'rain' : null;
+    } else {                // autumn
+      return r < 0.30 ? 'fog' : r < 0.42 ? 'rain' : null;
+    }
+  }
 
   function setSpeed(s) {
     state.speed = s;
@@ -74,6 +91,7 @@ SR.game = (() => {
     state.month = (state.month + 1) % 12;
     const yearJustRolled = state.month === 0;
     if (yearJustRolled) state.year++;
+    if (state.weatherAuto) state.weather = pickWeather(state.month);
     SR.sim.tick();
     SR.disasters.tickFires();
     SR.ui.markStatsDirty();
@@ -119,6 +137,9 @@ SR.game = (() => {
     state.scenarioStartMonth = state.month;
     state.search = '';
     state.heatmap = null;
+    state.weather = null;
+    state.weatherAuto = true;
+    state.photoMode = false;
     SR.grid.init(state.seed);
     let center = { x: SR.GRID_W / 2, y: SR.GRID_H / 2 };
     if (mode === 'starter') center = buildStarterCity();
