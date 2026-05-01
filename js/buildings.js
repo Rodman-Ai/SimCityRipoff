@@ -142,6 +142,102 @@ SR.BUILDINGS = {
     requires: { population: 1500 },
   },
 
+  // --- Specialized civic / commercial (Wave 5 #22-30) ---
+  casino: {
+    tool: 'build_casino', label: 'Holocasino', cost: 4000, maint: 100, size: 2,
+    power: -20, water: -8, pop: 0, jobs: 80, capacity: 0, range: 8,
+    pollution: 1, crimeRed: -0.2, fireRed: 0, landBoost: -2, needsRoad: true,
+    revenueBoost: 1500, // direct ₡/mo income
+    color: '#1a0a14', trim: '#ff2acc', glyph: '♠', category: 'service',
+    requires: { population: 800 },
+  },
+  prison: {
+    tool: 'build_prison', label: 'Datavault Prison', cost: 3000, maint: 200, size: 3,
+    power: -15, water: -10, pop: 0, jobs: 90, capacity: 0, range: 6,
+    pollution: 1, crimeRed: 0.4, fireRed: 0, landBoost: -8, needsRoad: true,
+    color: '#15110a', trim: '#9adfff', glyph: '⊞', category: 'service',
+    requires: { population: 1200 },
+  },
+  recycling: {
+    tool: 'build_recycling', label: 'Recycling Plant', cost: 1200, maint: 60, size: 2,
+    power: -8, water: -2, pop: 0, jobs: 18, capacity: 0, range: 6,
+    pollution: -2, crimeRed: 0, fireRed: 0, landBoost: 2,
+    garbageCapacity: 250, needsRoad: true,
+    color: '#0a1410', trim: '#3aff7a', glyph: '♻', category: 'service',
+  },
+  cyberclinic: {
+    tool: 'build_cyberclinic', label: 'Cyberware Clinic', cost: 1100, maint: 90, size: 2,
+    power: -16, water: -8, pop: 0, jobs: 24, capacity: 1800, range: 8,
+    pollution: 0, crimeRed: 0.1, fireRed: 0, landBoost: 4, needsRoad: true,
+    color: '#1a0a18', trim: '#ff2acc', glyph: '✚', category: 'service',
+    requires: { population: 600 },
+  },
+  conv: {
+    tool: 'build_conv', label: 'Convention Centre', cost: 3500, maint: 110, size: 3,
+    power: -18, water: -8, pop: 0, jobs: 60, capacity: 0, range: 10,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 12, needsRoad: true,
+    revenueBoost: 600,
+    color: '#0e1018', trim: '#3ad7ff', glyph: '⌂', category: 'service',
+    requires: { population: 1500 },
+  },
+  cathedral: {
+    tool: 'build_cathedral', label: 'Net-Cathedral', cost: 2200, maint: 30, size: 2,
+    power: -4, water: -2, pop: 0, jobs: 6, capacity: 0, range: 10,
+    pollution: 0, crimeRed: 0.15, fireRed: 0,
+    landBoost: 8, approvalBoost: 3, needsRoad: true,
+    color: '#1a0a06', trim: '#ffd23a', glyph: '✜', category: 'service',
+  },
+  drones: {
+    tool: 'build_drones', label: 'Drone Airfield', cost: 2800, maint: 140, size: 3,
+    power: -22, water: -4, pop: 0, jobs: 40, capacity: 0, range: 14,
+    pollution: 1, crimeRed: 0, fireRed: 0,
+    landBoost: 4, freightBoost: 1, // unlocks freight revenue
+    needsRoad: true,
+    color: '#10141a', trim: '#3ad7ff', glyph: '✈', category: 'service',
+    requires: { population: 1500 },
+  },
+  rooftop: {
+    tool: 'build_rooftop', label: 'Rooftop Solar', cost: 200, maint: 2, size: 1,
+    power: 5, water: 0, pop: 0, jobs: 0, capacity: 0, range: 0,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 1, needsRoad: false,
+    color: '#0a0a18', trim: '#ffd23a', glyph: '☀', category: 'power',
+  },
+  bunker: {
+    tool: 'build_bunker', label: 'Disaster Bunker', cost: 1800, maint: 50, size: 2,
+    power: -2, water: -2, pop: 0, jobs: 8, capacity: 0, range: 14,
+    pollution: 0, crimeRed: 0, fireRed: 0.3,
+    landBoost: 2, disasterShield: 0.5, // halves damage in coverage
+    needsRoad: true,
+    color: '#10100a', trim: '#9adfff', glyph: '⛨', category: 'service',
+  },
+
+  // --- Wave 5 transit/civic add-ons (#37-#39, #43) ---
+  cablecar: {
+    tool: 'build_cablecar', label: 'Cable Car Stn', cost: 1200, maint: 70, size: 2,
+    power: -8, water: -2, pop: 0, jobs: 16, capacity: 0, range: 12,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 6, needsRoad: true,
+    color: '#0a1018', trim: '#9adfff', glyph: '⌥', category: 'service',
+  },
+  pedpath: {
+    tool: 'build_pedpath', label: 'Pedestrian Plaza', cost: 80, maint: 1, size: 1,
+    power: 0, water: 0, pop: 0, jobs: 0, capacity: 0, range: 3,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 3, needsRoad: false,
+    color: '#1a160a', trim: '#ffaa1f', glyph: '·', category: 'service',
+  },
+  helipad: {
+    tool: 'build_helipad', label: 'Emergency Helipad', cost: 900, maint: 40, size: 2,
+    power: -5, water: -2, pop: 0, jobs: 6, capacity: 0, range: 10,
+    pollution: 0, crimeRed: 0, fireRed: 0.2, landBoost: 1, needsRoad: true,
+    color: '#1a0a0a', trim: '#ff6a00', glyph: '✜', category: 'service',
+  },
+  university: {
+    tool: 'build_university', label: 'Net University', cost: 2500, maint: 180, size: 3,
+    power: -15, water: -8, pop: 0, jobs: 60, capacity: 3000, range: 14,
+    pollution: 0, crimeRed: 0, fireRed: 0, landBoost: 12, needsRoad: true,
+    color: '#1a0a14', trim: '#ff2acc', glyph: '◇', category: 'service',
+    requires: { population: 2000 },
+  },
+
   // --- Megastructures / landmarks ---
   arcology: {
     tool: 'build_arcology', label: 'Neon Arcology', cost: 35000, maint: 1500, size: 3,

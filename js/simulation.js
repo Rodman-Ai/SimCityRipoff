@@ -32,6 +32,15 @@ SR.sim = (() => {
     const queue = [];
 
     // Power sources: buildings with power > 0
+    // #48 Water table — pumps adjacent to water tiles get +25% supply
+    function waterTableBoost(x, y, def) {
+      if (def.water <= 0) return 1;
+      for (let dy = -1; dy <= def.size; dy++) for (let dx = -1; dx <= def.size; dx++) {
+        const n = SR.grid.get(x + dx, y + dy);
+        if (n && n.t === 'water') return 1.25;
+      }
+      return 1;
+    }
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const t = SR.grid.get(x, y);
@@ -81,7 +90,7 @@ SR.sim = (() => {
         if (t.building) {
           const def = SR.BUILDINGS[t.building];
           if (def && def.water > 0) {
-            if (t.bx === x && t.by === y) waterSupply += def.water;
+            if (t.bx === x && t.by === y) waterSupply += def.water * waterTableBoost(x, y, def);
             const idx = y * W + x;
             if (!wvisited[idx]) { wvisited[idx] = 1; t.watered = true; wq.push(idx); }
           }
@@ -166,7 +175,24 @@ SR.sim = (() => {
     if (ord('promo')) c += 200;
     if (ord('clean')) c += 150;
     if (ord('rec'))   c += 300;
+    if (ord('subR')) c += 200;     // #10 R subsidy
+    if (ord('subC')) c += 200;     // #10 C subsidy
+    if (ord('subI')) c += 200;     // #10 I subsidy
+    if (ord('transit')) c += 250;  // #40 mass-transit pass
     return c;
+  }
+  // #5 Specialization perks — picked at New City; applied as multipliers each tick.
+  // #6 Credit rating — derived 0..100 from approval, debt and tax rate.
+  function creditRating() {
+    const debtRatio = SR.game.loans.reduce((s, l) => s + l.balance, 0) / 80000;
+    let r = (SR.game.approval || 50);
+    r -= debtRatio * 30;
+    r -= Math.max(0, SR.game.taxRate * 100 - 11) * 1.5;
+    return SR.utils.clamp(Math.round(r), 0, 100);
+  }
+  // #7 Inflation — slowly drift building costs upward with year.
+  function inflationFactor() {
+    return 1 + (SR.game.year - 2077) * 0.005;
   }
 
   // Compute coverage / pollution / crime / land-value fields and apply to tiles.
@@ -217,7 +243,7 @@ SR.sim = (() => {
       }
     }
 
-    const polMul = ord('clean') ? 0.75 : 1;
+    const polMul = (ord('clean') ? 0.75 : 1) * ((SR.game.modifiers && SR.game.modifiers.doublePollution) ? 2 : 1);
     const crimeMul = ord('curfew') ? 0.65 : 1;
     // Untreated garbage adds to citywide pollution (multiplicative bump on top
     // of zone-local pollution sources).
@@ -344,11 +370,20 @@ SR.sim = (() => {
     const recBoost = ord('rec') ? 25 : 0;       // Cyberware Subsidy → more R
     const promoBoost = ord('promo') ? 25 : 0;   // Megacorp Tax Holiday → more I
     const curfewMalus = ord('curfew') ? -10 : 0; // Curfew suppresses commerce
+    // #10 Direct subsidies + #40 transit pass + #5 specialization
+    const subR = ord('subR') ? 15 : 0;
+    const subC = ord('subC') ? 15 : 0;
+    const subI = ord('subI') ? 15 : 0;
+    const transitBoost = ord('transit') ? 8 : 0;
+    const spec = SR.game.specialization || null;
+    const specR = spec === 'tourism' ? 10 : 0;
+    const specC = spec === 'tourism' ? 20 : spec === 'tech' ? 8 : 0;
+    const specI = spec === 'industrial' ? 25 : spec === 'tech' ? 10 : 0;
     const goodsMalus = goodsRatio < 1 ? Math.round((1 - goodsRatio) * 50) : 0;
     SR.game.demand = {
-      r: SR.utils.clamp((totalJobs * 2 - totalPop) * 0.2 + (50 - taxR * 400) + recBoost, -100, 100),
-      c: SR.utils.clamp((popR * 0.6 - jobsC) * 0.5 + (40 - taxC * 350) + curfewMalus - goodsMalus, -100, 100),
-      i: SR.utils.clamp((popR * 0.4 - jobsI) * 0.5 + (40 - taxI * 300) + promoBoost, -100, 100),
+      r: SR.utils.clamp((totalJobs * 2 - totalPop) * 0.2 + (50 - taxR * 400) + recBoost + subR + transitBoost + specR, -100, 100),
+      c: SR.utils.clamp((popR * 0.6 - jobsC) * 0.5 + (40 - taxC * 350) + curfewMalus - goodsMalus + subC + transitBoost + specC, -100, 100),
+      i: SR.utils.clamp((popR * 0.4 - jobsI) * 0.5 + (40 - taxI * 300) + promoBoost + subI + specI, -100, 100),
     };
 
     SR.game.population = totalPop;
@@ -376,16 +411,19 @@ SR.sim = (() => {
     const incomeR = SR.game.population * 6 * taxR;
     const incomeC = SR.game.popCommercial * 14 * taxC * 4;
     const incomeI = SR.game.popIndustrial * 18 * taxI * 4;
-    const income = incomeR + incomeC + incomeI;
+    let income = incomeR + incomeC + incomeI;
 
-    // Maintenance + tally cemetery / incinerator / stadium capacity
+    // Maintenance + tally building-level effects
     let maintBuildings = 0;
     let maintRoads = 0;
     let burialCapacity = 0;
     let garbageHandled = 0;
-    let stadiumApproval = 0;
+    let approvalBoostSum = 0;
+    let revenueExtra = 0;     // direct ₡ income from casino / convention / etc.
+    let freightBoost = 0;     // drone-airfield freight income proxy
     for (const t of SR.grid.tiles) {
       if (t.road) maintRoads += t.road === 2 ? 1 : 0.4;
+      if (t.subway) maintRoads += 0.2; // subway maintenance
     }
     for (let y = 0; y < SR.GRID_H; y++) {
       for (let x = 0; x < SR.GRID_W; x++) {
@@ -396,16 +434,22 @@ SR.sim = (() => {
           if (def.maint) maintBuildings += def.maint;
           if (def.burialCapacity) burialCapacity += def.burialCapacity;
           if (def.garbageCapacity) garbageHandled += def.garbageCapacity;
-          if (def.approvalBoost) stadiumApproval += def.approvalBoost;
+          if (def.approvalBoost) approvalBoostSum += def.approvalBoost;
+          if (def.revenueBoost) revenueExtra += def.revenueBoost;
+          if (def.freightBoost) freightBoost += def.freightBoost;
         }
       }
     }
+    // Drone airfield freight income scales with population and number of fields.
+    if (freightBoost > 0) revenueExtra += freightBoost * Math.min(2000, SR.game.population * 0.5);
+
     // Cemetery: 1 unit / pop. Without enough capacity, residential growth bites.
     SR.game.deathCapacityRatio = SR.game.population > 0
       ? SR.utils.clamp(burialCapacity / SR.game.population, 0, 1)
       : 1;
     SR.game.garbage.handled = garbageHandled;
-    SR.game.stadiumApprovalBoost = stadiumApproval;
+    SR.game.stadiumApprovalBoost = approvalBoostSum;
+    SR.game.lastRevenueExtra = revenueExtra;
 
     // Loan repayments
     let loanPayment = 0;
@@ -421,6 +465,14 @@ SR.sim = (() => {
     }
     SR.game.lastLoanPayment = loanPayment;
 
+    // #49 Worker commute — when jobs outpace workforce, only the filled jobs earn
+    const jobsAvail = SR.game.jobs;
+    const workforce = SR.game.population * 0.55; // ~55% of pop works
+    if (jobsAvail > workforce && workforce > 0) {
+      const fillRate = workforce / jobsAvail;
+      income *= fillRate; // tax base falls because some jobs go unfilled
+    }
+    income += revenueExtra;
     const ordCost = ordinanceCost();
     const expense = maintBuildings + maintRoads + loanPayment + ordCost;
     const net = income - expense;
@@ -527,8 +579,25 @@ SR.sim = (() => {
     payDay();
     checkAchievements();
     dispatchServices();
+    // AI uprising — drain a small chunk of funds while active and decrement
+    if (SR.game.aiUprisingMonths > 0) {
+      SR.game.funds -= 200 + ((SR.game.population * 0.05) | 0);
+      SR.game.aiUprisingMonths--;
+      if (SR.game.aiUprisingMonths === 0) SR.ui.alert('AI UPRISING ENDED', 'good');
+    }
     if (SR.advisor) SR.advisor.tick();
     if (SR.ui && SR.ui.checkScenarioCompletion) SR.ui.checkScenarioCompletion();
+    if (SR.extras && SR.extras.checkArcologyWin) SR.extras.checkArcologyWin();
+    // Population milestones — fire fireworks at 1k / 5k / 10k
+    const pop = SR.game.population;
+    SR.game._milestonesShown = SR.game._milestonesShown || {};
+    [1000, 5000, 10000].forEach(m => {
+      if (pop >= m && !SR.game._milestonesShown[m]) {
+        SR.game._milestonesShown[m] = true;
+        if (SR.extras) SR.extras.fireworks();
+        SR.ui.pushTicker('★ Population milestone ' + m);
+      }
+    });
 
     SR.disasters.maybeTrigger();
 
@@ -539,7 +608,7 @@ SR.sim = (() => {
     }
   }
 
-  return { tick, markDirty, recomputeNetworks, recomputeFields };
+  return { tick, markDirty, recomputeNetworks, recomputeFields, creditRating, inflationFactor };
 })();
 
 SR.NEWS_LINES = [

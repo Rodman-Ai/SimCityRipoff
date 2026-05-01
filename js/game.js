@@ -40,6 +40,14 @@ SR.game = (() => {
     weather: null, // null | 'rain' | 'snow' | 'fog'
     weatherAuto: true,
     photoMode: false,
+    aiUprisingMonths: 0,
+    disasterHistory: [],
+    lastRevenueExtra: 0,
+    bookmarks: [null, null, null, null], // #72 — Shift+1..4
+    cityScores: [], // #77 — local leaderboard
+    a11y: { reducedMotion: false, largeText: false, palette: 'orange', haptics: true },
+    cheatsEnabled: false,
+    cryptoTokens: 0, // #8
   };
 
   // Legacy: some older code paths still read SR.game.taxRate. Provide a
@@ -104,10 +112,12 @@ SR.game = (() => {
   }
 
   // mode: 'starter' (default), 'demo', or 'blank'
-  function newCity({ name, seed, funds, starter, mode } = {}) {
+  function newCity({ name, seed, funds, starter, mode, specialization, modifiers } = {}) {
     if (mode == null) {
       mode = (starter === false) ? 'blank' : 'starter';
     }
+    state.specialization = specialization || null;
+    state.modifiers = modifiers || {};
     // Demo always uses a known-good seed so the showcase landscape is consistent.
     if (mode === 'demo') seed = 0xC1A0 ^ 0xCAFE;
     state.cityName = name || (mode === 'demo' ? 'Neo-Rodman Showcase' : 'Neo-Rodman');
@@ -140,6 +150,12 @@ SR.game = (() => {
     state.weather = null;
     state.weatherAuto = true;
     state.photoMode = false;
+    state.aiUprisingMonths = 0;
+    state.disasterHistory = [];
+    state.lastRevenueExtra = 0;
+    state.bookmarks = [null, null, null, null];
+    state.cryptoTokens = 0;
+    state.cheatsEnabled = false;
     SR.grid.init(state.seed);
     let center = { x: SR.GRID_W / 2, y: SR.GRID_H / 2 };
     if (mode === 'starter') center = buildStarterCity();

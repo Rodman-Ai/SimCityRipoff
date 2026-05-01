@@ -46,8 +46,9 @@
     SR.ui.init();
     SR.input.init(canvas);
 
-    // Try load existing save, otherwise new city
-    const loaded = SR.save.load();
+    // Try load: URL hash > localStorage save > new city.
+    let loaded = SR.extras && SR.extras.importFromHash && SR.extras.importFromHash();
+    if (!loaded) loaded = SR.save.load();
     if (!loaded) {
       SR.game.newCity({ name: 'Neo-Rodman', seed: (Math.random() * 1e9) | 0, funds: 20000 });
       SR.ui.alert('NEW CITY: NEO-RODMAN', 'good');
@@ -57,6 +58,15 @@
       SR.ui.alert('CITY LOADED', 'good');
     }
     SR.camera.center(SR.GRID_W / 2, SR.GRID_H / 2);
+
+    // Apply persisted accessibility / theme + start watching for cheats
+    if (SR.extras) {
+      SR.extras.applyA11y();
+      SR.extras.applyTheme();
+      SR.extras.watchKonami();
+      // Show patchnotes the first time this version boots
+      setTimeout(() => SR.extras.maybeShowPatchnotes(), 1500);
+    }
 
     // Autosave every 30s
     setInterval(() => { SR.save.save(); }, 30000);

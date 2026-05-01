@@ -208,6 +208,13 @@ SR.input = (() => {
   };
   function onKey(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    // #72 Camera bookmarks — Shift+1..4 saves, Alt+1..4 recalls
+    if (e.shiftKey && e.key >= '1' && e.key <= '4') {
+      e.preventDefault(); SR.extras.saveBookmark(parseInt(e.key, 10) - 1); return;
+    }
+    if (e.altKey && e.key >= '1' && e.key <= '4') {
+      e.preventDefault(); SR.extras.recallBookmark(parseInt(e.key, 10) - 1); return;
+    }
     const k = e.key.toLowerCase();
     if (keymap[k]) { SR.tools.select(keymap[k]); e.preventDefault(); return; }
     switch (k) {
@@ -222,6 +229,8 @@ SR.input = (() => {
       case 's': if (e.ctrlKey || e.metaKey) { e.preventDefault(); SR.save.save(); SR.ui.alert('CITY SAVED', 'good'); } break;
       case 'z': if (e.ctrlKey || e.metaKey) { e.preventDefault(); SR.tools.undo(); } break;
       case '?': SR.ui.openKeymap(); break;
+      // #61 Bird's-eye fit
+      case 'f': SR.camera.setZoom(0.4); SR.camera.center(SR.GRID_W / 2, SR.GRID_H / 2); break;
     }
   }
 

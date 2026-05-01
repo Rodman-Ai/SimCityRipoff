@@ -155,6 +155,21 @@ Open `http://localhost:8000` and click **JACK IN**.
   residential tile.
 - **Demolition debris** — 12-particle puff with gravity bursts every
   time you bulldoze something.
+- **Wave 4 + 5 sweep** — 9 specialty buildings (casino, prison, recycling
+  plant, cyberware clinic, convention centre, net-cathedral, drone
+  airfield, rooftop solar, disaster bunker), 4 transit add-ons (cable car,
+  pedestrian plaza, helipad, net university), 5 new disasters (AI
+  uprising, nano-plague, solar flare, climate refugees, EMP eruption),
+  difficulty modifiers (perma-night, 2× pollution, no loans), city
+  specializations (Industrial, Tourism, Tech), three new ordinances (R/C/I
+  subsidies + transit pass), inflation, demolition refund, credit rating,
+  bird's-eye camera (`F`), wet-asphalt rain reflections, water-table
+  pump boost, worker-commute job filling, milestone fireworks, arcology
+  victory screen, mayor portrait, local leaderboard, weekly seed
+  challenge, share-city-by-URL, accessibility settings (color-blind,
+  large text, reduced motion, haptics, theme palettes), camera bookmarks
+  (Shift+1..4 / Alt+1..4), patchnotes modal, custom hotkeys, achievement
+  badge export, and a Konami-code cheat console.
 - **Subway tube** ⎇ — underground transit (`U` hotkey, ₡20). Carries
   power and water and counts as road for zone fitness, drawn as a
   scrolling magenta dashed line that doesn't conflict with the surface.

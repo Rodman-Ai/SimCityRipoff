@@ -25,7 +25,7 @@ SR.camera = (() => {
   }
 
   function setZoom(z, ax, ay) {
-    z = Math.max(0.5, Math.min(2.5, z));
+    z = Math.max(0.25, Math.min(3.0, z)); // #61 broader zoom range — bird's-eye to close-up
     if (ax == null) {
       zoom = z;
       return;

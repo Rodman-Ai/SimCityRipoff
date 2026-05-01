@@ -470,6 +470,18 @@ textarea { min-height: 120px; resize: vertical; }
 ul.tips { padding-left: 20px; line-height: 1.5; }
 ul.tips li { margin-bottom: 4px; }
 
+/* Accessibility (Wave 5 #81/#82/#85) */
+body.large-text {
+  font-size: 18px;
+}
+body.large-text #topbar .stat .lbl,
+body.large-text .tool .tn { font-size: 14px; }
+body.reduced-motion #scanlines,
+body.reduced-motion #vignette { display: none !important; }
+body.reduced-motion .glitch { animation: none !important; }
+body.cb-protan .rci-fill { background: var(--cyan); }
+body.cb-deutan .alert.bad { color: #ffd23a; border-color: #ffd23a; }
+
 /* Glitch (used in disasters) */
 .glitch {
   animation: glitch 0.5s steps(2, end) infinite;

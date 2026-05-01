@@ -30,6 +30,13 @@ SR.save = (() => {
         debtMonths: SR.game.debtMonths,
         weather: SR.game.weather,
         weatherAuto: SR.game.weatherAuto,
+        a11y: SR.game.a11y,
+        bookmarks: SR.game.bookmarks,
+        specialization: SR.game.specialization,
+        modifiers: SR.game.modifiers,
+        cryptoTokens: SR.game.cryptoTokens,
+        disasterHistory: SR.game.disasterHistory,
+        aiUprisingMonths: SR.game.aiUprisingMonths,
       },
       tiles: SR.grid.tiles.map(t => ({
         z: t.z, t: t.t, road: t.road, power: t.power ? 1 : 0, pipe: t.pipe ? 1 : 0,
@@ -72,6 +79,13 @@ SR.save = (() => {
     SR.game.weather = data.game.weather || null;
     SR.game.weatherAuto = data.game.weatherAuto !== false;
     SR.game.photoMode = false;
+    SR.game.a11y = data.game.a11y || SR.game.a11y;
+    SR.game.bookmarks = data.game.bookmarks || [null, null, null, null];
+    SR.game.specialization = data.game.specialization || null;
+    SR.game.modifiers = data.game.modifiers || {};
+    SR.game.cryptoTokens = data.game.cryptoTokens || 0;
+    SR.game.disasterHistory = data.game.disasterHistory || [];
+    SR.game.aiUprisingMonths = data.game.aiUprisingMonths || 0;
     SR.game.cityName = (data.meta && data.meta.cityName) || SR.game.cityName || 'Neo-Rodman';
 
     // Rebuild blank grid then restore

@@ -87,6 +87,14 @@ SR.ui = (() => {
           case 'help': openHelp(); break;
           case 'achievements': openAchievements(); break;
           case 'tutorial': openTutorial(true); break;
+          case 'leaderboard': SR.extras.openLeaderboard(); break;
+          case 'weekly': SR.extras.openWeeklyChallenge(); break;
+          case 'share': SR.extras.exportToHash(); break;
+          case 'mayor': SR.extras.openMayorPortrait(); break;
+          case 'a11y': SR.extras.openA11ySettings(); break;
+          case 'hotkeys': SR.extras.openHotkeyEditor(); break;
+          case 'patchnotes': SR.extras.maybeShowPatchnotes(); break;
+          case 'achv-export': SR.extras.exportAchievements(); break;
         }
       });
     });
@@ -303,6 +311,7 @@ SR.ui = (() => {
       <div class="section-title">LOANS &amp; BONDS</div>
       ${loanRows}
       <div class="kv"><span class="k">Total balance</span><span class="v">${SR.utils.fmtCredits(totalLoanBal|0)}</span></div>
+      ${(g.modifiers && g.modifiers.noLoans) ? '<div style="color:var(--red);font-size:12px;margin:6px 0">NO LOANS modifier active — all debt instruments are disabled.</div>' : `
       <div style="color:var(--text-d);font-size:12px;margin:6px 0 2px 0">SHORT-TERM LOAN — 30 months, ~20% total interest. Cap ₡20,000.</div>
       <div class="btn-row">
         <button id="loan-2k"  ${maxLoan >= 2000  ? '' : 'disabled'}>LOAN ₡2k</button>
@@ -315,6 +324,7 @@ SR.ui = (() => {
         <button id="bond-25k" ${maxBond >= 25000 ? '' : 'disabled'}>BOND ₡25k</button>
         <button id="bond-50k" ${maxBond >= 50000 ? '' : 'disabled'}>BOND ₡50k</button>
       </div>
+      <div style="color:var(--text-d);font-size:12px;margin-top:8px">CREDIT RATING: ${(SR.sim.creditRating ? SR.sim.creditRating() : 0)|0}/100</div>`}
       <div class="section-title">CITY</div>
       <div class="kv"><span class="k">Population</span><span class="v">${SR.utils.fmt(g.population)}</span></div>
       <div class="kv"><span class="k">Jobs</span><span class="v">${SR.utils.fmt(g.jobs)}</span></div>
@@ -415,10 +425,14 @@ SR.ui = (() => {
         <div style="color:var(--text-d);font-size:13px">${desc}</div></label>`;
     }
     const html = `
-      ${row('curfew', 'Neon Curfew', 'Reduces crime, lowers commerce demand.')}
-      ${row('promo', 'Megacorp Tax Holiday', 'Boosts industrial demand, costs ₡200/mo.')}
-      ${row('clean', 'Air Filtration Mandate', 'Cuts pollution by 25%, costs ₡150/mo.')}
-      ${row('rec', 'Cyberware Subsidy', 'Boosts residential demand, costs ₡300/mo.')}
+      ${row('curfew', 'Neon Curfew', 'Reduces crime 35%, lowers C demand 10. Free.')}
+      ${row('promo', 'Megacorp Tax Holiday', 'Boosts I demand +25, costs ₡200/mo.')}
+      ${row('clean', 'Air Filtration Mandate', 'Cuts pollution 25%, costs ₡150/mo.')}
+      ${row('rec', 'Cyberware Subsidy', 'Boosts R demand +25, costs ₡300/mo.')}
+      ${row('subR', 'Residential Grant', 'Direct R demand subsidy +15, costs ₡200/mo.')}
+      ${row('subC', 'Commercial Grant', 'Direct C demand subsidy +15, costs ₡200/mo.')}
+      ${row('subI', 'Industrial Grant', 'Direct I demand subsidy +15, costs ₡200/mo.')}
+      ${row('transit', 'Mass Transit Pass', 'Boosts R+C demand +8, costs ₡250/mo.')}
     `;
     openModal('ORDINANCES', html);
     document.querySelectorAll('[data-ord]').forEach(c => {
@@ -481,6 +495,18 @@ SR.ui = (() => {
         <label style="display:block;cursor:pointer;padding:2px 0"><input type="radio" name="new-mode" value="demo"   style="accent-color:#ff6a00"> Demo city (showcase)</label>
         <label style="display:block;cursor:pointer;padding:2px 0"><input type="radio" name="new-mode" value="blank"   style="accent-color:#ff6a00"> Blank slate</label>
       </span></div>
+      <div class="kv"><span class="k">Specialization</span><span class="v">
+        <select id="new-spec" style="background:#0a0504;color:var(--orange-2);border:1px solid var(--line-2);padding:2px">
+          <option value="">None</option>
+          <option value="industrial">Industrial Hub (+25 I demand)</option>
+          <option value="tourism">Tourism (+10 R, +20 C demand)</option>
+          <option value="tech">Tech Corridor (+8 C, +10 I demand)</option>
+        </select></span></div>
+      <div class="kv"><span class="k">Modifiers</span><span class="v" style="text-align:left">
+        <label style="cursor:pointer"><input type="checkbox" id="mod-pn" style="accent-color:#ff6a00"> Perma-Night</label>
+        <label style="cursor:pointer;margin-left:8px"><input type="checkbox" id="mod-dp" style="accent-color:#ff6a00"> 2× Pollution</label>
+        <label style="cursor:pointer;margin-left:8px"><input type="checkbox" id="mod-nl" style="accent-color:#ff6a00"> No Loans</label>
+      </span></div>
       <div style="font-size:12px;color:var(--text-d);margin:4px 0 8px 0">
         <b>Starter</b> drops a road cross, wind farm, water pump, holopark and R/C/I zones (free).
         <b>Demo</b> spawns a fully-developed showcase city — multi-block grid, services, megacorp, plaza and pre-grown districts. (Demo uses a fixed map seed.)
@@ -497,7 +523,14 @@ SR.ui = (() => {
       const funds = diff === 'easy' ? 40000 : diff === 'hard' ? 10000 : 20000;
       const sel = document.querySelector('input[name="new-mode"]:checked');
       const mode = (sel && sel.value) || 'starter';
-      SR.game.newCity({ name, seed, funds, mode });
+      const specEl = document.getElementById('new-spec');
+      const specialization = (specEl && specEl.value) || null;
+      const modifiers = {
+        permaNight: document.getElementById('mod-pn').checked,
+        doublePollution: document.getElementById('mod-dp').checked,
+        noLoans: document.getElementById('mod-nl').checked,
+      };
+      SR.game.newCity({ name, seed, funds, mode, specialization, modifiers });
       closeModal();
       alert('NEW CITY: ' + name.toUpperCase(), 'good');
     });

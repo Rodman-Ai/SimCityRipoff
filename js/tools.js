@@ -114,6 +114,16 @@ SR.tools = (() => {
 
   function canAfford(c) { return SR.game.funds >= c; }
   function spend(c) { SR.game.funds -= c; SR.ui.markStatsDirty(); }
+  // #7 Inflation factor — small drift per year
+  function inflated(cost) {
+    return Math.round(cost * (1 + (SR.game.year - 2077) * 0.005));
+  }
+  // #14 Demolition refund — give back 25% of the original cost when demolishing a building
+  function refundForBuilding(key) {
+    const def = SR.BUILDINGS[key];
+    if (!def) return 0;
+    return Math.round(def.cost * 0.25);
+  }
 
   // Apply current tool at tile (x,y). May be called many times during drag.
   function applyAt(x, y) {
@@ -144,11 +154,17 @@ SR.tools = (() => {
     const t = SR.grid.get(x, y);
     if (!t) return;
     if (t.t === 'water') { return; }
+    const wasBuilding = t.building;
     const had = SR.grid.demolish(x, y);
     if (had) {
       const cost = getCost('bulldoze');
       if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
       spend(cost);
+      // #14 partial refund on building demolition
+      if (wasBuilding) {
+        const refund = refundForBuilding(wasBuilding);
+        if (refund > 0) { SR.game.funds += refund; SR.ui.markStatsDirty(); }
+      }
       SR.audio.sfx.bulldoze();
       if (SR.renderer && SR.renderer.spawnDebris) SR.renderer.spawnDebris(x, y);
       SR.sim.markDirty();
@@ -166,7 +182,7 @@ SR.tools = (() => {
     let cost = getCost(baseTool);
     if (t.t === 'water') cost += 30; // bridge premium
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
-    if (SR.grid.setRoad(x, y, level)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+    if (SR.grid.setRoad(x, y, level)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
   }
 
   function doSubway(x, y) {
@@ -175,7 +191,7 @@ SR.tools = (() => {
     if (t.subway) return;
     const cost = getCost('subway');
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
-    if (SR.grid.setSubway(x, y)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+    if (SR.grid.setSubway(x, y)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
   }
 
   function doPower(x, y) {
@@ -184,7 +200,7 @@ SR.tools = (() => {
     if (t.power) return;
     const cost = getCost('power');
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
-    if (SR.grid.setPower(x, y)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+    if (SR.grid.setPower(x, y)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
   }
 
   function doPipe(x, y) {
@@ -193,7 +209,7 @@ SR.tools = (() => {
     if (t.pipe) return;
     const cost = getCost('pipe');
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
-    if (SR.grid.setPipe(x, y)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+    if (SR.grid.setPipe(x, y)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
   }
 
   function doMaglev(x, y) {
@@ -202,7 +218,7 @@ SR.tools = (() => {
     if (t.maglev) return;
     const cost = getCost('maglev');
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
-    if (SR.grid.setMaglev(x, y)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+    if (SR.grid.setMaglev(x, y)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
   }
 
   function doZone(x, y, kind) {
@@ -211,7 +227,7 @@ SR.tools = (() => {
     if (t.zone === kind) return;
     const cost = getCost('zone_' + kind);
     if (!canAfford(cost)) { fail('LOW FUNDS'); return; }
-    if (SR.grid.setZone(x, y, kind)) { spend(cost); SR.audio.sfx.place(); SR.sim.markDirty(); }
+    if (SR.grid.setZone(x, y, kind)) { spend(cost); SR.audio.sfx.place(); if (SR.extras) SR.extras.buzz(); SR.sim.markDirty(); }
   }
 
   function doBuild(x, y, tool) {

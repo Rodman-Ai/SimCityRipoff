@@ -77,7 +77,7 @@ SR.disasters = (() => {
       effect: () => {
         let n = 0;
         for (const t of SR.grid.tiles) {
-          if ((t.road || t.zone) && Math.random() < 0.03) {
+          if ((t.road || t.zone) && Math.random() < 0.03 * disasterMul()) {
             if (t.zone) t.level = Math.max(0, t.level - 1);
             if (t.road && Math.random() < 0.4) t.road = 0;
             n++;
@@ -88,7 +88,100 @@ SR.disasters = (() => {
       },
       weight: 0.4,
     },
+    // ---- Wave 5 disasters (#51-55) ----
+    {
+      key: 'ai', name: 'AI UPRISING',
+      msg: 'Megacorp AI hijacks municipal systems for six months.',
+      effect: () => {
+        SR.game.aiUprisingMonths = 6;
+        SR.ui.alert('CONTROL LOST FOR 6 MONTHS', 'bad');
+      },
+      weight: 0.5,
+    },
+    {
+      key: 'plague', name: 'NANO-PLAGUE',
+      msg: 'A rogue nano-virus tears through the population.',
+      effect: () => {
+        let n = 0;
+        for (const t of SR.grid.tiles) {
+          if (t.zone === 'r' && t.level > 0 && Math.random() < 0.10 * disasterMul()) {
+            t.level = Math.max(0, t.level - 1); n++;
+          }
+        }
+        if (n) SR.ui.alert('-' + n + ' RESIDENTIAL BLOCKS COLLAPSED', 'bad');
+      },
+      weight: 0.7,
+    },
+    {
+      key: 'flare', name: 'SOLAR FLARE',
+      msg: 'Geomagnetic storm — power grid offline.',
+      effect: () => {
+        // Visual-only blackout: temporarily erase poweredBy. Will restore on next sim tick.
+        for (const t of SR.grid.tiles) t.poweredBy = false;
+        SR.renderer.flashScreen(400, 'rgba(255,210,80,0.8)');
+        SR.renderer.triggerGlitch(2500);
+      },
+      weight: 0.9,
+    },
+    {
+      key: 'refugees', name: 'CLIMATE REFUGEES',
+      msg: 'Mass arrivals — housing demand explodes.',
+      effect: () => {
+        // Force-bump random R-zone levels by 1 if there is room.
+        let n = 0;
+        for (const t of SR.grid.tiles) {
+          if (t.zone === 'r' && t.level < 3 && Math.random() < 0.25) {
+            t.level++; n++;
+            t._anim = { from: performance.now(), dur: 600 };
+          }
+        }
+        SR.game.demand.r = Math.min(100, (SR.game.demand.r || 0) + 40);
+        if (n) SR.ui.alert('+' + n + ' BLOCKS, R DEMAND SURGE', 'good');
+      },
+      weight: 0.4,
+    },
+    {
+      key: 'eruption', name: 'EMP ERUPTION',
+      msg: 'Underground reactor breach! Lava-glass tiles permanent.',
+      effect: () => {
+        // Convert a small radius around a random ground tile into water (proxy for lava).
+        const W = SR.GRID_W, H = SR.GRID_H;
+        for (let tries = 0; tries < 8; tries++) {
+          const cx = (Math.random() * W) | 0, cy = (Math.random() * H) | 0;
+          const c = SR.grid.get(cx, cy);
+          if (!c || c.t !== 'ground') continue;
+          let n = 0;
+          for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+            if (Math.random() < 0.6 * disasterMul()) {
+              const t = SR.grid.get(cx + dx, cy + dy);
+              if (!t) continue;
+              t.t = 'water'; // permanent
+              t.road = 0; t.power = false; t.pipe = false; t.maglev = false;
+              t.subway = false; t.zone = null; t.building = null;
+              t.level = 0;
+              n++;
+            }
+          }
+          if (n) SR.ui.alert(n + ' TILES MELTED', 'bad');
+          break;
+        }
+        SR.renderer.flashScreen(280, 'rgba(255,80,40,0.7)');
+      },
+      weight: 0.25,
+    },
   ];
+
+  // #56 Disaster preparedness — bunkers in coverage radius cut severity.
+  // Returned as a multiplier 0.5..1 applied to all disaster-effect random rolls.
+  function disasterMul() {
+    let coverage = 0;
+    for (const t of SR.grid.tiles) {
+      if (t.building && SR.BUILDINGS[t.building] && SR.BUILDINGS[t.building].disasterShield) {
+        coverage = Math.max(coverage, SR.BUILDINGS[t.building].disasterShield);
+      }
+    }
+    return 1 - coverage;
+  }
 
   // Per-disaster flash color + thunder pitch
   const FX = {
@@ -108,6 +201,13 @@ SR.disasters = (() => {
     SR.audio.sfx.boom();
     SR.ui.alert(d.name, 'bad');
     SR.ui.pushTicker('!! ' + d.name + ' :: ' + d.msg);
+    // #58 history log
+    SR.game.disasterHistory = SR.game.disasterHistory || [];
+    SR.game.disasterHistory.push({
+      key: d.key, name: d.name,
+      year: SR.game.year, month: SR.game.month,
+    });
+    if (SR.game.disasterHistory.length > 60) SR.game.disasterHistory.shift();
     const fx = FX[key];
     if (fx && SR.renderer && SR.renderer.flashScreen) {
       // Triple-flash like lightning
@@ -121,9 +221,11 @@ SR.disasters = (() => {
 
   function maybeTrigger() {
     if (SR.game.population < 200) return;
-    // average ~ 1 disaster every 18 months
-    if (Math.random() > 1 / 18) return;
-    // Weighted random pick
+    // #57 Season pressure — winter ↑disasters, summer ↓ them
+    const m = SR.game.month | 0;
+    const seasonMul = m < 3 ? 1.6 : m < 6 ? 1.0 : m < 9 ? 0.7 : 1.2;
+    // baseline: ~1 disaster per 18 months, modulated by season
+    if (Math.random() > seasonMul / 18) return;
     let total = 0; for (const d of list) total += d.weight;
     let r = Math.random() * total;
     for (const d of list) { r -= d.weight; if (r <= 0) { trigger(d.key); return; } }

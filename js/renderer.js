@@ -423,9 +423,11 @@ SR.renderer = (() => {
     const cSW = sw && sw.road;
 
     // Asphalt diamond. Bridges get a colder, blued asphalt + faint deck shadow.
-    if (isBridge) ctx.fillStyle = '#0e1622';
-    else if (isHigh) ctx.fillStyle = '#211712';
-    else ctx.fillStyle = '#1a1310';
+    // #66 Wet asphalt during rain has a cyan sheen.
+    const wet = SR.game.weather === 'rain';
+    if (isBridge) ctx.fillStyle = wet ? '#0a1a26' : '#0e1622';
+    else if (isHigh) ctx.fillStyle = wet ? '#1a2a30' : '#211712';
+    else ctx.fillStyle = wet ? '#162028' : '#1a1310';
     diamondPath(sx, sy, hw, hh);
     ctx.fill();
 
@@ -1115,6 +1117,10 @@ SR.renderer = (() => {
   }
 
   function updateDayNight() {
+    // #95 perma-night modifier
+    if (SR.game.modifiers && SR.game.modifiers.permaNight) {
+      darkness = 0.92; dawnDusk = 0; return;
+    }
     // 1 in-game day = 1440 minutes. Game.minute increments per real-time frame
     // and per-month tick — fine grained enough for a smooth cycle.
     const phase = ((SR.game.minute % 1440) / 1440 + 0.25) % 1; // shift so dawn ~ 0
