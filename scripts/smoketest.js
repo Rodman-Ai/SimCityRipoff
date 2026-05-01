@@ -261,4 +261,38 @@ SR.game.stepMonth();
 console.log('Demo pop after 1 tick:', SR.game.population, 'jobs:', SR.game.jobs, 'funds:', Math.round(SR.game.funds));
 if (SR.game.population < 1000) console.warn('WARNING: demo population looks low');
 
+// ----- Wave 1 features test -----
+console.log('---');
+console.log('Wave-1 features test:');
+SR.game.newCity({ name: 'WaveTestCity', funds: 30000, mode: 'demo' });
+
+// Tax bands per zone
+SR.game.taxRates = { r: 0.04, c: 0.10, i: 0.20 };
+SR.game.stepMonth();
+console.log('Per-zone tax band income (after 1 tick):', Math.round(SR.game.lastIncome));
+if (SR.game.lastIncome <= 0) console.warn('WARNING: zero income with tax bands set');
+
+// Goods production/consumption (demo has both I and C zones)
+console.log('Goods produced:', SR.game.goods.produced, 'consumed:', SR.game.goods.consumed);
+if (SR.game.goods.produced === 0 && SR.game.goods.consumed === 0) console.warn('WARNING: goods chain not tracking');
+
+// Garbage simulation
+console.log('Garbage produced:', SR.game.garbage.produced, 'handled:', SR.game.garbage.handled);
+
+// Bond issuance via the loan system
+SR.game.loans.push({
+  id: 999, kind: 'bond', principal: 11000, balance: 11000, monthly: 184, monthsLeft: 60,
+});
+SR.game.stepMonth();
+const bond = SR.game.loans.find(l => l.id === 999);
+console.log('Bond after 1 tick: balance=', Math.round(bond.balance), 'monthsLeft=', bond.monthsLeft);
+if (bond.monthsLeft !== 59) console.warn('WARNING: bond not amortizing');
+
+// Save/load preserves taxRates
+SR.game.taxRates = { r: 0.05, c: 0.07, i: 0.13 };
+const w1json = SR.save.exportJson();
+SR.save.importJson(w1json);
+console.log('TaxRates after save/load:', JSON.stringify(SR.game.taxRates));
+if (SR.game.taxRates.r !== 0.05 || SR.game.taxRates.i !== 0.13) console.warn('WARNING: taxRates lost in round-trip');
+
 console.log('Smoke test PASS');

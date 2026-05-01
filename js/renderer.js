@@ -720,6 +720,68 @@ SR.renderer = (() => {
     ctx.restore();
   }
 
+  // Heatmap overlay (#74) — translucent tile-by-tile color over the main view
+  function drawHeatmap() {
+    const mode = SR.game.heatmap;
+    if (!mode) return;
+    const cam = SR.camera;
+    const hw = (cam.TILE_W / 2) * cam.getZoom();
+    const hh = (cam.TILE_H / 2) * cam.getZoom();
+    const b = viewBounds();
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t) continue;
+        let v = 0, color;
+        if (mode === 'pollution') { v = t.pollution / 100; color = `rgba(180,255,80,${(v * 0.6).toFixed(3)})`; }
+        else if (mode === 'crime') { v = t.crime / 100; color = `rgba(255,40,80,${(v * 0.6).toFixed(3)})`; }
+        else if (mode === 'value') { v = t.land / 100; color = `rgba(255,170,31,${(v * 0.5).toFixed(3)})`; }
+        else if (mode === 'density') {
+          const k = (t.zone === 'r' ? t.pop : t.jobs) || 0;
+          v = Math.min(1, k / 48);
+          color = `rgba(58,255,160,${(v * 0.6).toFixed(3)})`;
+        }
+        if (v < 0.03) continue;
+        const sc = cam.tileToScreen(x, y, t.z);
+        ctx.fillStyle = color;
+        diamondPath(sc.sx, sc.sy, hw, hh);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Building search highlight (#73) — pulse halo on every building whose
+  // label or key matches SR.game.search (case-insensitive substring).
+  function drawSearchHighlight() {
+    const q = (SR.game.search || '').toLowerCase();
+    if (!q) return;
+    const cam = SR.camera;
+    const hw = (cam.TILE_W / 2) * cam.getZoom();
+    const hh = (cam.TILE_H / 2) * cam.getZoom();
+    const b = viewBounds();
+    const pulse = 0.6 + 0.4 * Math.sin(frame * 0.15);
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(255,210,58,${pulse.toFixed(3)})`;
+    ctx.shadowColor = '#ffd23a';
+    ctx.shadowBlur = 14;
+    for (let y = b.y0; y <= b.y1; y++) {
+      for (let x = b.x0; x <= b.x1; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t || !t.building || t.bx !== x || t.by !== y) continue;
+        const def = SR.BUILDINGS[t.building];
+        const key = t.building.toLowerCase();
+        const lbl = (def && def.label || '').toLowerCase();
+        if (!key.includes(q) && !lbl.includes(q)) continue;
+        const sz = (def && def.size) || 1;
+        const sc = cam.tileToScreen(x + (sz - 1) / 2, y + (sz - 1) / 2, t.z);
+        diamondPath(sc.sx, sc.sy, hw * sz, hh * sz);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   function updateDayNight() {
     // 1 in-game day = 1440 minutes. Game.minute increments per real-time frame
     // and per-month tick — fine grained enough for a smooth cycle.
@@ -826,6 +888,8 @@ SR.renderer = (() => {
       }
     }
 
+    drawHeatmap();
+    drawSearchHighlight();
     drawDayNightOverlay();
     drawParticles(performance.now());
     drawCursorHighlight();

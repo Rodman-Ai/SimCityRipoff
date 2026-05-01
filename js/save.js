@@ -15,14 +15,19 @@ SR.save = (() => {
         seed: SR.game.seed,
         year: SR.game.year, month: SR.game.month,
         funds: SR.game.funds,
-        taxRate: SR.game.taxRate,
+        taxRates: SR.game.taxRates,
         approval: SR.game.approval,
         history: SR.game.history,
+        yearStart: SR.game.yearStart,
         ordinances: SR.game.ordinances,
         loans: SR.game.loans,
         nextLoanId: SR.game.nextLoanId,
         achievements: SR.game.achievements,
         tutorialDone: SR.game.tutorialDone,
+        activeScenario: SR.game.activeScenario,
+        scenarioStartYear: SR.game.scenarioStartYear,
+        scenarioStartMonth: SR.game.scenarioStartMonth,
+        debtMonths: SR.game.debtMonths,
       },
       tiles: SR.grid.tiles.map(t => ({
         z: t.z, t: t.t, road: t.road, power: t.power ? 1 : 0, pipe: t.pipe ? 1 : 0,
@@ -39,14 +44,29 @@ SR.save = (() => {
     SR.game.year = data.game.year;
     SR.game.month = data.game.month;
     SR.game.funds = data.game.funds;
-    SR.game.taxRate = data.game.taxRate;
+    // Backward compat: old saves had a single `taxRate` number.
+    if (data.game.taxRates) {
+      SR.game.taxRates = {
+        r: data.game.taxRates.r != null ? data.game.taxRates.r : 0.09,
+        c: data.game.taxRates.c != null ? data.game.taxRates.c : 0.09,
+        i: data.game.taxRates.i != null ? data.game.taxRates.i : 0.09,
+      };
+    } else if (typeof data.game.taxRate === 'number') {
+      SR.game.taxRates = { r: data.game.taxRate, c: data.game.taxRate, i: data.game.taxRate };
+    }
     SR.game.approval = data.game.approval;
     SR.game.history = data.game.history || [];
+    SR.game.yearStart = data.game.yearStart || { funds: SR.game.funds, population: 0 };
     SR.game.ordinances = data.game.ordinances || {};
     SR.game.loans = data.game.loans || [];
     SR.game.nextLoanId = data.game.nextLoanId || 1;
     SR.game.achievements = data.game.achievements || {};
     SR.game.tutorialDone = !!data.game.tutorialDone;
+    SR.game.activeScenario = data.game.activeScenario || null;
+    SR.game.scenarioStartYear = data.game.scenarioStartYear || SR.game.year;
+    SR.game.scenarioStartMonth = data.game.scenarioStartMonth || 0;
+    SR.game.debtMonths = data.game.debtMonths || 0;
+    SR.game.gameOver = null;
     SR.game.cityName = (data.meta && data.meta.cityName) || SR.game.cityName || 'Neo-Rodman';
 
     // Rebuild blank grid then restore

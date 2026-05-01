@@ -219,11 +219,17 @@ SR.sim = (() => {
 
     const polMul = ord('clean') ? 0.75 : 1;
     const crimeMul = ord('curfew') ? 0.65 : 1;
+    // Untreated garbage adds to citywide pollution (multiplicative bump on top
+    // of zone-local pollution sources).
+    const gProd = SR.game.garbage.produced || 0;
+    const gHandled = SR.game.garbage.handled || 0;
+    const garbageBump = gHandled >= gProd ? 0
+      : SR.utils.clamp((gProd - gHandled) * 0.05, 0, 30);
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const t = SR.grid.get(x, y);
         const i = y * W + x;
-        t.pollution = SR.utils.clamp(Math.round((pol2[i] || polF[i]) * polMul), 0, 100);
+        t.pollution = SR.utils.clamp(Math.round(((pol2[i] || polF[i]) + garbageBump) * polMul), 0, 100);
 
         // Crime ↑ with low police, low value, high pollution
         const baseCrime = (15 - policeF[i] * 25 + (t.pollution * 0.2) - (valueF[i] * 0.2)) * crimeMul;
@@ -250,8 +256,27 @@ SR.sim = (() => {
     let popR = 0, popC = 0, popI = 0;
     let jobsC = 0, jobsI = 0;
 
-    // Demand baseline: tax rate + ratio of jobs to pop
-    const tax = SR.game.taxRate; // 0..0.2
+    // Per-zone tax bands. Each zone reads its own band for fitness and income.
+    const taxR = SR.game.taxRates.r;
+    const taxC = SR.game.taxRates.c;
+    const taxI = SR.game.taxRates.i;
+
+    // Production-chain MVP: industrial zones produce goods, commercial consume
+    // them. Aggregate per tick — if commerce demand outpaces supply, the
+    // demand bar drops and individual commercial tiles take a fitness hit.
+    let goodsProd = 0, goodsCons = 0;
+    let garbageProd = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const t = SR.grid.get(x, y);
+        if (!t.zone || t.level === 0) continue;
+        if (t.zone === 'i') goodsProd += t.level * 2;
+        else if (t.zone === 'c') goodsCons += t.level;
+        garbageProd += t.level;
+      }
+    }
+    const goodsRatio = goodsCons > 0 ? Math.min(1.5, goodsProd / goodsCons) : 1;
+    SR.game.goods = { produced: goodsProd, consumed: goodsCons };
 
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
@@ -260,47 +285,56 @@ SR.sim = (() => {
 
         const adjRoad = roadNearby(x, y, 2);
         const hasUtil = t.poweredBy && t.watered;
+        const tax = t.zone === 'r' ? taxR : t.zone === 'c' ? taxC : taxI;
 
-      // Fitness 0..1: amenities, value, services
-      let fit = 0;
-      fit += t.land / 100 * 0.4;
-      fit += (hasUtil ? 0.25 : 0) + (adjRoad ? 0.15 : -0.5);
-      fit += (t._eduCov || 0) * 0.1;
-      fit += (t._healthCov || 0) * 0.05;
-      fit -= (t.pollution / 100) * 0.2;
-      fit -= (t.crime / 100) * 0.2;
-      fit -= tax * 1.5;
-
-      // Tax/quality dependent demand bias
-      if (t.zone === 'r') fit += SR.game.demand.r * 0.0008;
-      if (t.zone === 'c') fit += SR.game.demand.c * 0.0008;
-      if (t.zone === 'i') fit += SR.game.demand.i * 0.0008;
-
-      // Decide level changes
-      const target = SR.utils.clamp(Math.round(fit * 3.5), 0, 3);
-      if (t.level < target) {
-        if (Math.random() < 0.18) {
-          t.level++;
-          t._anim = { from: performance.now(), dur: 500 };
+        // Fitness 0..1: amenities, value, services
+        let fit = 0;
+        fit += t.land / 100 * 0.4;
+        fit += (hasUtil ? 0.25 : 0) + (adjRoad ? 0.15 : -0.5);
+        fit += (t._eduCov || 0) * 0.1;
+        fit += (t._healthCov || 0) * 0.05;
+        fit -= (t.pollution / 100) * 0.2;
+        fit -= (t.crime / 100) * 0.2;
+        fit -= tax * 1.5;
+        // Cemetery shortage hurts residential
+        if (t.zone === 'r' && SR.game.deathCapacityRatio < 1) {
+          fit -= (1 - SR.game.deathCapacityRatio) * 0.1;
         }
-      } else if (t.level > target) {
-        if (Math.random() < 0.10) t.level--;
-        if (t.level < 0) t.level = 0;
-      }
+        // Goods supply gates commerce growth
+        if (t.zone === 'c' && goodsRatio < 1) {
+          fit -= (1 - goodsRatio) * 0.3;
+        }
 
-      // populate / employ
-      if (t.zone === 'r') {
-        t.pop = t.level * 16;
-        popR += t.pop;
-      } else if (t.zone === 'c') {
-        t.jobs = t.level * 14;
-        jobsC += t.jobs;
-        popC += t.level * 4; // commerce supports residents indirectly
-      } else if (t.zone === 'i') {
-        t.jobs = t.level * 18;
-        jobsI += t.jobs;
-        popI += t.level * 2;
-      }
+        // Tax/quality dependent demand bias
+        if (t.zone === 'r') fit += SR.game.demand.r * 0.0008;
+        if (t.zone === 'c') fit += SR.game.demand.c * 0.0008;
+        if (t.zone === 'i') fit += SR.game.demand.i * 0.0008;
+
+        // Decide level changes
+        const target = SR.utils.clamp(Math.round(fit * 3.5), 0, 3);
+        if (t.level < target) {
+          if (Math.random() < 0.18) {
+            t.level++;
+            t._anim = { from: performance.now(), dur: 500 };
+          }
+        } else if (t.level > target) {
+          if (Math.random() < 0.10) t.level--;
+          if (t.level < 0) t.level = 0;
+        }
+
+        // populate / employ
+        if (t.zone === 'r') {
+          t.pop = t.level * 16;
+          popR += t.pop;
+        } else if (t.zone === 'c') {
+          t.jobs = t.level * 14;
+          jobsC += t.jobs;
+          popC += t.level * 4; // commerce supports residents indirectly
+        } else if (t.zone === 'i') {
+          t.jobs = t.level * 18;
+          jobsI += t.jobs;
+          popI += t.level * 2;
+        }
       } // x
     } // y
 
@@ -310,17 +344,18 @@ SR.sim = (() => {
     const recBoost = ord('rec') ? 25 : 0;       // Cyberware Subsidy → more R
     const promoBoost = ord('promo') ? 25 : 0;   // Megacorp Tax Holiday → more I
     const curfewMalus = ord('curfew') ? -10 : 0; // Curfew suppresses commerce
-    // R demand: more jobs than pop -> R demand up
+    const goodsMalus = goodsRatio < 1 ? Math.round((1 - goodsRatio) * 50) : 0;
     SR.game.demand = {
-      r: SR.utils.clamp((totalJobs * 2 - totalPop) * 0.2 + (50 - tax * 400) + recBoost, -100, 100),
-      c: SR.utils.clamp((popR * 0.6 - jobsC) * 0.5 + (40 - tax * 350) + curfewMalus, -100, 100),
-      i: SR.utils.clamp((popR * 0.4 - jobsI) * 0.5 + (40 - tax * 300) + promoBoost, -100, 100),
+      r: SR.utils.clamp((totalJobs * 2 - totalPop) * 0.2 + (50 - taxR * 400) + recBoost, -100, 100),
+      c: SR.utils.clamp((popR * 0.6 - jobsC) * 0.5 + (40 - taxC * 350) + curfewMalus - goodsMalus, -100, 100),
+      i: SR.utils.clamp((popR * 0.4 - jobsI) * 0.5 + (40 - taxI * 300) + promoBoost, -100, 100),
     };
 
     SR.game.population = totalPop;
     SR.game.jobs = totalJobs;
     SR.game.popCommercial = popC;
     SR.game.popIndustrial = popI;
+    SR.game.garbage.produced = garbageProd;
   }
 
   function roadNearby(x, y, radius) {
@@ -334,33 +369,43 @@ SR.sim = (() => {
   }
 
   function payDay() {
-    // Compute taxes from R/C/I population and jobs
-    const tax = SR.game.taxRate;
-    const incomeR = SR.game.population * 6 * tax;
-    const incomeC = SR.game.popCommercial * 14 * tax * 4;
-    const incomeI = SR.game.popIndustrial * 18 * tax * 4;
+    // Per-zone tax bands
+    const taxR = SR.game.taxRates.r;
+    const taxC = SR.game.taxRates.c;
+    const taxI = SR.game.taxRates.i;
+    const incomeR = SR.game.population * 6 * taxR;
+    const incomeC = SR.game.popCommercial * 14 * taxC * 4;
+    const incomeI = SR.game.popIndustrial * 18 * taxI * 4;
     const income = incomeR + incomeC + incomeI;
 
-    // Maintenance
+    // Maintenance + tally cemetery / incinerator / stadium capacity
     let maintBuildings = 0;
     let maintRoads = 0;
+    let burialCapacity = 0;
+    let garbageHandled = 0;
+    let stadiumApproval = 0;
     for (const t of SR.grid.tiles) {
       if (t.road) maintRoads += t.road === 2 ? 1 : 0.4;
-      if (t.building) {
-        if (t.bx === undefined) continue;
-        // Only count once via top-left
-      }
     }
-    // unique pass for buildings
     for (let y = 0; y < SR.GRID_H; y++) {
       for (let x = 0; x < SR.GRID_W; x++) {
         const t = SR.grid.get(x, y);
         if (t.building && t.bx === x && t.by === y) {
           const def = SR.BUILDINGS[t.building];
-          if (def && def.maint) maintBuildings += def.maint;
+          if (!def) continue;
+          if (def.maint) maintBuildings += def.maint;
+          if (def.burialCapacity) burialCapacity += def.burialCapacity;
+          if (def.garbageCapacity) garbageHandled += def.garbageCapacity;
+          if (def.approvalBoost) stadiumApproval += def.approvalBoost;
         }
       }
     }
+    // Cemetery: 1 unit / pop. Without enough capacity, residential growth bites.
+    SR.game.deathCapacityRatio = SR.game.population > 0
+      ? SR.utils.clamp(burialCapacity / SR.game.population, 0, 1)
+      : 1;
+    SR.game.garbage.handled = garbageHandled;
+    SR.game.stadiumApprovalBoost = stadiumApproval;
 
     // Loan repayments
     let loanPayment = 0;
@@ -405,15 +450,26 @@ SR.sim = (() => {
     SR.game.history.push({ year: SR.game.year, month: SR.game.month, pop: SR.game.population, funds: SR.game.funds, income, expense });
     if (SR.game.history.length > 240) SR.game.history.shift();
 
-    // Approval — based on tax rate, services, growth
-    const polAvg = SR.game.population > 0 ? SR.game.population : 1;
+    // Approval — averaged tax weighed by zone size; service balance; stadium boost
     let approval = 60;
     approval -= SR.game.taxRate * 200;
     approval += Math.min(20, SR.game.population / 200);
     if (SR.game.power.demand > SR.game.power.supply) approval -= 10;
     if (SR.game.water.demand > SR.game.water.supply) approval -= 6;
+    if (SR.game.garbage.produced > SR.game.garbage.handled) approval -= 4;
+    if (SR.game.deathCapacityRatio < 1 && SR.game.population > 200) approval -= 4;
+    approval += SR.game.stadiumApprovalBoost;
     approval = SR.utils.clamp(approval, 0, 100);
     SR.game.approval = Math.round(approval * 0.3 + (SR.game.approval || 50) * 0.7);
+
+    // Bankruptcy watchdog — if funds stay deeply negative for 6 months,
+    // surface the game-over screen.
+    if (SR.game.funds < -5000) SR.game.debtMonths = (SR.game.debtMonths || 0) + 1;
+    else SR.game.debtMonths = 0;
+    if (SR.game.debtMonths >= 6 && !SR.game.gameOver) {
+      SR.game.gameOver = 'bankruptcy';
+      if (SR.ui && SR.ui.gameOver) SR.ui.gameOver('bankruptcy');
+    }
 
     // alerts
     if (SR.game.power.demand > SR.game.power.supply * 1.05 && SR.game.population > 100) {
@@ -421,6 +477,9 @@ SR.sim = (() => {
     }
     if (SR.game.water.demand > SR.game.water.supply * 1.05 && SR.game.population > 100) {
       SR.ui.alert('WATER SHORTAGE', 'bad');
+    }
+    if (SR.game.garbage.produced > SR.game.garbage.handled * 1.2 && SR.game.population > 200) {
+      SR.ui.alert('GARBAGE PILE-UP', 'bad');
     }
     if (net < 0 && SR.game.funds < 0) {
       SR.ui.alert('CITY IN DEBT', 'bad');
@@ -469,6 +528,7 @@ SR.sim = (() => {
     checkAchievements();
     dispatchServices();
     if (SR.advisor) SR.advisor.tick();
+    if (SR.ui && SR.ui.checkScenarioCompletion) SR.ui.checkScenarioCompletion();
 
     SR.disasters.maybeTrigger();
 

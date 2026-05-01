@@ -42,6 +42,11 @@ SR.ui = (() => {
         switch (a) {
           case 'budget': openBudget(); break;
           case 'charts': openCharts(); break;
+          case 'dashboard': openDashboard(); break;
+          case 'scenarios': openScenarios(); break;
+          case 'search': openSearch(); break;
+          case 'heatmap': openHeatmapPicker(); break;
+          case 'keymap': openKeymap(); break;
           case 'news': openNews(); break;
           case 'ordinances': openOrdinances(); break;
           case 'save': SR.save.save(); alert('CITY SAVED', 'good'); break;
@@ -89,7 +94,12 @@ SR.ui = (() => {
     document.getElementById('stat-funds').textContent = SR.utils.fmtCredits(g.funds);
     document.getElementById('stat-pop').textContent = SR.utils.fmt(g.population);
     document.getElementById('stat-approval').textContent = (g.approval | 0) + '%';
-    document.getElementById('stat-tax').textContent = (g.taxRate * 100).toFixed(1) + '%';
+    // Compact "9/9/9" display when bands diverge, otherwise the average.
+    const r = (g.taxRates.r * 100).toFixed(1);
+    const c = (g.taxRates.c * 100).toFixed(1);
+    const i = (g.taxRates.i * 100).toFixed(1);
+    document.getElementById('stat-tax').textContent =
+      (r === c && c === i) ? r + '%' : `${r}/${c}/${i}%`;
 
     // RCI bars (-100..100 -> centered 80px bar)
     function setRCI(id, v) {
@@ -233,33 +243,53 @@ SR.ui = (() => {
 
   function openBudget() {
     const g = SR.game;
-    const tax = g.taxRate;
-    const loanRows = (g.loans || []).map(l =>
-      `<div class="kv"><span class="k">Loan #${l.id}</span><span class="v">${SR.utils.fmtCredits(l.balance|0)} (${l.monthsLeft}mo @ ${SR.utils.fmtCredits(l.monthly)}/mo)</span></div>`
-    ).join('') || '<div class="kv"><span class="k">No active loans</span><span class="v">—</span></div>';
+    const taxR = (g.taxRates.r * 100).toFixed(1);
+    const taxC = (g.taxRates.c * 100).toFixed(1);
+    const taxI = (g.taxRates.i * 100).toFixed(1);
+    const loanRows = (g.loans || []).map(l => {
+      const tag = l.kind === 'bond' ? 'Bond' : 'Loan';
+      return `<div class="kv"><span class="k">${tag} #${l.id}</span><span class="v">${SR.utils.fmtCredits(l.balance|0)} (${l.monthsLeft}mo @ ${SR.utils.fmtCredits(l.monthly)}/mo)</span></div>`;
+    }).join('') || '<div class="kv"><span class="k">No active debt</span><span class="v">—</span></div>';
     const totalLoanBal = (g.loans || []).reduce((s, l) => s + l.balance, 0);
-    const maxBorrow = SR.utils.clamp(20000 - totalLoanBal, 0, 20000);
+    const maxLoan = SR.utils.clamp(20000 - totalLoanBal, 0, 20000);
+    const maxBond = SR.utils.clamp(80000 - totalLoanBal, 0, 80000);
     const html = `
-      <div class="section-title">TAXATION</div>
+      <div class="section-title">TAXATION (R / C / I)</div>
       <div class="slider-row">
-        <label>Tax Rate</label>
-        <input type="range" id="tax-slider" min="0" max="20" step="0.5" value="${(tax * 100).toFixed(1)}">
-        <span class="val" id="tax-val">${(tax * 100).toFixed(1)}%</span>
+        <label>R Tax</label>
+        <input type="range" id="tax-r" min="0" max="20" step="0.5" value="${taxR}">
+        <span class="val" id="tax-r-val">${taxR}%</span>
+      </div>
+      <div class="slider-row">
+        <label>C Tax</label>
+        <input type="range" id="tax-c" min="0" max="20" step="0.5" value="${taxC}">
+        <span class="val" id="tax-c-val">${taxC}%</span>
+      </div>
+      <div class="slider-row">
+        <label>I Tax</label>
+        <input type="range" id="tax-i" min="0" max="20" step="0.5" value="${taxI}">
+        <span class="val" id="tax-i-val">${taxI}%</span>
       </div>
       <div class="section-title">LAST MONTH</div>
       <div class="kv"><span class="k">Income</span><span class="v">${SR.utils.fmtCredits(g.lastIncome || 0)}</span></div>
       <div class="kv"><span class="k">Expense</span><span class="v">${SR.utils.fmtCredits(g.lastExpense || 0)}</span></div>
-      <div class="kv"><span class="k">  of which loans</span><span class="v">${SR.utils.fmtCredits(g.lastLoanPayment || 0)}</span></div>
+      <div class="kv"><span class="k">  of which debt</span><span class="v">${SR.utils.fmtCredits(g.lastLoanPayment || 0)}</span></div>
       <div class="kv"><span class="k">Net</span><span class="v">${SR.utils.fmtCredits((g.lastIncome || 0) - (g.lastExpense || 0))}</span></div>
-      <div class="section-title">LOANS</div>
+      <div class="section-title">LOANS &amp; BONDS</div>
       ${loanRows}
-      <div class="kv"><span class="k">Total balance</span><span class="v">${SR.utils.fmtCredits(totalLoanBal|0)} / ${SR.utils.fmtCredits(20000)} cap</span></div>
+      <div class="kv"><span class="k">Total balance</span><span class="v">${SR.utils.fmtCredits(totalLoanBal|0)}</span></div>
+      <div style="color:var(--text-d);font-size:12px;margin:6px 0 2px 0">SHORT-TERM LOAN — 30 months, ~20% total interest. Cap ₡20,000.</div>
       <div class="btn-row">
-        <button id="loan-2k"  ${maxBorrow >= 2000  ? '' : 'disabled'}>BORROW ₡2,000</button>
-        <button id="loan-5k"  ${maxBorrow >= 5000  ? '' : 'disabled'}>BORROW ₡5,000</button>
-        <button id="loan-10k" ${maxBorrow >= 10000 ? '' : 'disabled'}>BORROW ₡10,000</button>
+        <button id="loan-2k"  ${maxLoan >= 2000  ? '' : 'disabled'}>LOAN ₡2k</button>
+        <button id="loan-5k"  ${maxLoan >= 5000  ? '' : 'disabled'}>LOAN ₡5k</button>
+        <button id="loan-10k" ${maxLoan >= 10000 ? '' : 'disabled'}>LOAN ₡10k</button>
       </div>
-      <div style="color:var(--text-d);font-size:12px;margin-top:4px">Loans repaid over 30 months at ~20% total interest.</div>
+      <div style="color:var(--text-d);font-size:12px;margin:8px 0 2px 0">MUNICIPAL BOND — 60 months, ~10% total interest. Cap ₡80,000 across all debt.</div>
+      <div class="btn-row">
+        <button id="bond-10k" ${maxBond >= 10000 ? '' : 'disabled'}>BOND ₡10k</button>
+        <button id="bond-25k" ${maxBond >= 25000 ? '' : 'disabled'}>BOND ₡25k</button>
+        <button id="bond-50k" ${maxBond >= 50000 ? '' : 'disabled'}>BOND ₡50k</button>
+      </div>
       <div class="section-title">CITY</div>
       <div class="kv"><span class="k">Population</span><span class="v">${SR.utils.fmt(g.population)}</span></div>
       <div class="kv"><span class="k">Jobs</span><span class="v">${SR.utils.fmt(g.jobs)}</span></div>
@@ -268,30 +298,47 @@ SR.ui = (() => {
       <div class="kv"><span class="k">Approval</span><span class="v">${g.approval|0}%</span></div>
     `;
     openModal('BUDGET // ' + (g.cityName || 'CITY'), html);
-    const slider = document.getElementById('tax-slider');
-    const val = document.getElementById('tax-val');
-    slider.addEventListener('input', () => {
-      const v = parseFloat(slider.value);
-      g.taxRate = v / 100;
-      val.textContent = v.toFixed(1) + '%';
-      markStatsDirty();
-    });
-    function takeLoan(amount) {
-      const interest = 0.20;
-      const months = 30;
+    function bindTax(id, valId, key) {
+      const s = document.getElementById(id);
+      const v = document.getElementById(valId);
+      if (!s) return;
+      s.addEventListener('input', () => {
+        const n = parseFloat(s.value);
+        g.taxRates[key] = n / 100;
+        v.textContent = n.toFixed(1) + '%';
+        markStatsDirty();
+      });
+    }
+    bindTax('tax-r', 'tax-r-val', 'r');
+    bindTax('tax-c', 'tax-c-val', 'c');
+    bindTax('tax-i', 'tax-i-val', 'i');
+
+    function takeDebt(amount, kind) {
+      const interest = kind === 'bond' ? 0.10 : 0.20;
+      const months   = kind === 'bond' ? 60   : 30;
       const principal = amount * (1 + interest);
       const monthly = Math.ceil(principal / months);
-      g.loans.push({ id: g.nextLoanId++, principal, balance: principal, monthly, monthsLeft: months });
+      g.loans.push({
+        id: g.nextLoanId++, kind: kind || 'loan',
+        principal, balance: principal, monthly, monthsLeft: months,
+      });
       g.funds += amount;
       markStatsDirty();
       SR.audio.sfx.cash();
-      alert('LOAN APPROVED: ' + SR.utils.fmtCredits(amount), 'good');
+      alert((kind === 'bond' ? 'BOND ISSUED: ' : 'LOAN APPROVED: ') + SR.utils.fmtCredits(amount), 'good');
       closeModal();
       openBudget(); // refresh
     }
-    const b2 = document.getElementById('loan-2k'); if (b2) b2.addEventListener('click', () => takeLoan(2000));
-    const b5 = document.getElementById('loan-5k'); if (b5) b5.addEventListener('click', () => takeLoan(5000));
-    const b10 = document.getElementById('loan-10k'); if (b10) b10.addEventListener('click', () => takeLoan(10000));
+    const bind = (id, amt, kind) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => takeDebt(amt, kind));
+    };
+    bind('loan-2k',  2000,  'loan');
+    bind('loan-5k',  5000,  'loan');
+    bind('loan-10k', 10000, 'loan');
+    bind('bond-10k', 10000, 'bond');
+    bind('bond-25k', 25000, 'bond');
+    bind('bond-50k', 50000, 'bond');
   }
 
   function openCharts() {
@@ -505,6 +552,260 @@ SR.ui = (() => {
     openModal('HOW TO PLAY', html);
   }
 
+  // ---- Bankruptcy / game-over (#4) ----
+  function gameOver(reason) {
+    const html = `
+      <div class="section-title glitch">SYSTEM HALTED // INSOLVENT</div>
+      <p>The municipal treasury has been below ₡-5,000 for six months. The
+      megacorps have foreclosed. Neo-Rodman is in receivership.</p>
+      <p>Choose your fate, mayor.</p>
+      <div class="btn-row">
+        <button class="pri" id="go-bailout">ACCEPT BAILOUT (-25% APPROVAL, +₡20,000)</button>
+      </div>
+      <div class="btn-row">
+        <button id="go-restart">RESTART (DEMO CITY)</button>
+        <button id="go-blank">RESTART (BLANK)</button>
+      </div>
+    `;
+    openModal('GAME OVER', html);
+    document.getElementById('go-bailout').addEventListener('click', () => {
+      SR.game.funds += 20000;
+      SR.game.approval = SR.utils.clamp(SR.game.approval - 25, 0, 100);
+      SR.game.debtMonths = 0;
+      SR.game.gameOver = null;
+      markStatsDirty();
+      closeModal();
+      alert('BAILOUT ACCEPTED', 'good');
+    });
+    document.getElementById('go-restart').addEventListener('click', () => {
+      SR.game.newCity({ mode: 'demo' });
+      closeModal();
+    });
+    document.getElementById('go-blank').addEventListener('click', () => {
+      SR.game.newCity({ mode: 'blank' });
+      closeModal();
+    });
+  }
+
+  // ---- Year-end report (#94) ----
+  const YEAR_QUOTES = [
+    'Another year of neon, smog and rent hikes. Not bad.',
+    '"This city never sleeps." — anonymous mayor',
+    'Megacorps watching. Citizens posting. Drones humming.',
+    'The grid held. Mostly.',
+    'Crime is down, rent is up — call it progress.',
+  ];
+  function yearEndReport(year) {
+    const g = SR.game;
+    const popDelta = g.population - (g.yearStart.population || 0);
+    const fundsDelta = g.funds - (g.yearStart.funds || 0);
+    const quote = YEAR_QUOTES[(year + g.population) % YEAR_QUOTES.length];
+    const html = `
+      <div class="section-title">YEAR ${year} :: ANNUAL REVIEW</div>
+      <div class="kv"><span class="k">Population start → end</span><span class="v">${SR.utils.fmt(g.yearStart.population || 0)} → ${SR.utils.fmt(g.population)} (${popDelta >= 0 ? '+' : ''}${SR.utils.fmt(popDelta)})</span></div>
+      <div class="kv"><span class="k">Funds start → end</span><span class="v">${SR.utils.fmtCredits(g.yearStart.funds || 0)} → ${SR.utils.fmtCredits(g.funds)} (${fundsDelta >= 0 ? '+' : ''}${SR.utils.fmtCredits(fundsDelta)})</span></div>
+      <div class="kv"><span class="k">Approval</span><span class="v">${g.approval | 0}%</span></div>
+      <div class="kv"><span class="k">Jobs</span><span class="v">${SR.utils.fmt(g.jobs)}</span></div>
+      <div class="kv"><span class="k">Goods (prod / cons)</span><span class="v">${(g.goods.produced)|0} / ${(g.goods.consumed)|0}</span></div>
+      <div class="kv"><span class="k">Garbage (prod / handled)</span><span class="v">${(g.garbage.produced)|0} / ${(g.garbage.handled)|0}</span></div>
+      <div style="margin-top:10px;color:var(--orange-2);font-style:italic">${quote}</div>
+      <div class="btn-row"><button class="pri" id="ye-ok">CONTINUE</button></div>
+    `;
+    openModal('YEAR END', html);
+    document.getElementById('ye-ok').addEventListener('click', closeModal);
+  }
+
+  // ---- Keymap overlay (#79) ----
+  function openKeymap() {
+    const rows = [
+      ['B', 'Demolish'], ['R', 'Road'], ['H', 'Highway'],
+      ['P', 'Power line'], ['W', 'Water pipe'], ['M', 'Maglev'],
+      ['1 / 2 / 3', 'Zone R / C / I'],
+      ['4..8', 'Police / Fire / Clinic / School / Park'],
+      ['9 / 0', 'Solar / Wind'],
+      ['Space', 'Pause / play'],
+      ['Esc', 'Cancel tool / close modal'],
+      ['Arrows', 'Pan camera'],
+      ['+ / -', 'Zoom'],
+      ['Ctrl/Cmd+S', 'Quick save'],
+      ['Ctrl/Cmd+Z', 'Undo'],
+      ['?', 'Show this keymap'],
+    ];
+    const html = '<div class="section-title">KEYBINDINGS</div>'
+      + rows.map(([k, v]) =>
+          `<div class="kv"><span class="k" style="color:var(--orange-2)">${k}</span><span class="v">${v}</span></div>`
+        ).join('');
+    openModal('KEYBOARD CHEAT-SHEET', html);
+  }
+
+  // ---- Heatmap overlay picker (#74) ----
+  function openHeatmapPicker() {
+    const cur = SR.game.heatmap || 'none';
+    const opts = [
+      ['none',      'OFF'],
+      ['pollution', 'Pollution'],
+      ['crime',     'Crime'],
+      ['value',     'Land Value'],
+      ['density',   'Population Density'],
+    ];
+    const html = '<div class="section-title">HEAT-MAP OVERLAY</div>'
+      + '<p>Tints the main viewport with the selected metric.</p>'
+      + opts.map(([k, label]) =>
+          `<div class="btn-row"><button class="${cur === k ? 'pri' : ''}" data-heat="${k}">${label}</button></div>`
+        ).join('');
+    openModal('HEAT-MAP', html);
+    document.querySelectorAll('[data-heat]').forEach(b => {
+      b.addEventListener('click', () => {
+        SR.game.heatmap = b.dataset.heat === 'none' ? null : b.dataset.heat;
+        closeModal();
+      });
+    });
+  }
+
+  // ---- City health dashboard (#76) ----
+  function openDashboard() {
+    const g = SR.game;
+    // Aggregate averages
+    let polTot = 0, crimeTot = 0, valTot = 0, n = 0;
+    for (const t of SR.grid.tiles) if (t.zone) { n++; polTot += t.pollution; crimeTot += t.crime; valTot += t.land; }
+    n = n || 1;
+    const stats = [
+      { label: 'Power',    val: g.power.supply > 0 ? Math.min(100, g.power.supply / Math.max(1, g.power.demand) * 50) : 0 },
+      { label: 'Water',    val: g.water.supply > 0 ? Math.min(100, g.water.supply / Math.max(1, g.water.demand) * 50) : 0 },
+      { label: 'Approval', val: g.approval },
+      { label: 'Land',     val: valTot / n },
+      { label: 'Air',      val: 100 - polTot / n },     // inverted pollution
+      { label: 'Order',    val: 100 - crimeTot / n },   // inverted crime
+    ];
+    const W = 320, H = 280, cx = W / 2, cy = H / 2, R = 100;
+    const N = stats.length;
+    function pt(i, val) {
+      const ang = -Math.PI / 2 + (i / N) * Math.PI * 2;
+      const r = (val / 100) * R;
+      return { x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r };
+    }
+    let polyD = '';
+    for (let i = 0; i < N; i++) {
+      const p = pt(i, stats[i].val);
+      polyD += (i ? ' L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1);
+    }
+    polyD += ' Z';
+    let axes = '';
+    for (let i = 0; i < N; i++) {
+      const o = pt(i, 100);
+      axes += `<line x1="${cx}" y1="${cy}" x2="${o.x}" y2="${o.y}" stroke="rgba(255,170,31,0.18)"/>`;
+    }
+    let rings = '';
+    for (let r = 25; r <= 100; r += 25) {
+      let d = '';
+      for (let i = 0; i < N; i++) {
+        const p = pt(i, r);
+        d += (i ? ' L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1);
+      }
+      d += ' Z';
+      rings += `<path d="${d}" stroke="rgba(255,170,31,0.12)" fill="none"/>`;
+    }
+    let labels = '';
+    for (let i = 0; i < N; i++) {
+      const o = pt(i, 115);
+      labels += `<text x="${o.x}" y="${o.y}" fill="#ffaa1f" text-anchor="middle" font-size="11" font-family="inherit">${stats[i].label}</text>`;
+    }
+    const svg = `
+      <svg width="100%" viewBox="0 0 ${W} ${H}" style="background:#0a0604;border:1px solid var(--line-2)">
+        ${rings}${axes}${labels}
+        <path d="${polyD}" fill="rgba(255,106,0,0.25)" stroke="#ff8a1f" stroke-width="1.5" />
+      </svg>`;
+    const rows = stats.map(s =>
+      `<div class="kv"><span class="k">${s.label}</span><span class="v">${(s.val | 0)}%</span></div>`
+    ).join('');
+    openModal('CITY HEALTH', svg + rows);
+  }
+
+  // ---- Search bar (#73) ----
+  function openSearch() {
+    const html = `
+      <p>Type a building name (or partial match) to highlight all instances on the map.</p>
+      <input type="text" id="search-input" placeholder="e.g. police, megacorp, solar" autofocus>
+      <div class="btn-row">
+        <button class="pri" id="search-apply">HIGHLIGHT</button>
+        <button id="search-clear">CLEAR</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-d);margin-top:6px">Tip: leave blank and press CLEAR to remove the highlight.</div>
+    `;
+    openModal('FIND BUILDING', html);
+    function apply() {
+      SR.game.search = document.getElementById('search-input').value.trim().toLowerCase();
+      closeModal();
+    }
+    document.getElementById('search-apply').addEventListener('click', apply);
+    document.getElementById('search-clear').addEventListener('click', () => {
+      SR.game.search = '';
+      closeModal();
+    });
+    document.getElementById('search-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') apply();
+    });
+  }
+
+  // ---- Scenarios (#71) ----
+  function openScenarios() {
+    const list = SR.SCENARIOS || [];
+    const active = list.find(s => s.key === SR.game.activeScenario);
+    let html = '<div class="section-title">SCENARIOS</div>';
+    if (active) {
+      const prog = active.progress(SR.game);
+      const months = (SR.game.year - SR.game.scenarioStartYear) * 12 + (SR.game.month - SR.game.scenarioStartMonth);
+      html += `<div class="kv"><span class="k">${active.name} (active)</span><span class="v">${months} / ${active.deadlineMonths} mo</span></div>`;
+      html += `<div style="font-size:12px;color:var(--text-d)">${active.desc}</div>`;
+      html += `<div class="bar"><span style="width:${(prog * 100) | 0}%"></span></div>`;
+      html += `<div class="kv"><span class="k">Progress</span><span class="v">${(prog * 100) | 0}%</span></div>`;
+      html += `<div class="btn-row"><button id="scen-cancel">ABANDON SCENARIO</button></div>`;
+    } else {
+      html += '<p>Pick a goal — the timer starts when you accept.</p>';
+      for (const s of list) {
+        html += `<div style="border:1px solid var(--line-2);padding:6px;margin:6px 0">
+          <div style="color:var(--orange-2)">${s.name}</div>
+          <div style="font-size:12px;color:var(--text-d);margin-bottom:4px">${s.desc}</div>
+          <div style="font-size:12px">Deadline: ${s.deadlineMonths} months</div>
+          <div class="btn-row"><button class="pri" data-scen="${s.key}">ACCEPT</button></div>
+        </div>`;
+      }
+    }
+    openModal('SCENARIOS', html);
+    document.querySelectorAll('[data-scen]').forEach(b => {
+      b.addEventListener('click', () => {
+        SR.game.activeScenario = b.dataset.scen;
+        SR.game.scenarioStartYear = SR.game.year;
+        SR.game.scenarioStartMonth = SR.game.month;
+        alert('SCENARIO ACTIVE', 'good');
+        closeModal();
+      });
+    });
+    const cancel = document.getElementById('scen-cancel');
+    if (cancel) cancel.addEventListener('click', () => {
+      SR.game.activeScenario = null;
+      closeModal();
+    });
+  }
+
+  function checkScenarioCompletion() {
+    const key = SR.game.activeScenario;
+    if (!key || !SR.SCENARIOS) return;
+    const scen = SR.SCENARIOS.find(s => s.key === key);
+    if (!scen) return;
+    const months = (SR.game.year - SR.game.scenarioStartYear) * 12 + (SR.game.month - SR.game.scenarioStartMonth);
+    if (scen.test(SR.game)) {
+      alert('SCENARIO COMPLETE: ' + scen.name.toUpperCase(), 'good');
+      pushTicker('★ Scenario complete: ' + scen.name);
+      if (scen.reward) SR.game.funds += scen.reward;
+      SR.game.activeScenario = null;
+    } else if (months > scen.deadlineMonths) {
+      alert('SCENARIO FAILED: ' + scen.name.toUpperCase(), 'bad');
+      pushTicker('Scenario expired: ' + scen.name);
+      SR.game.activeScenario = null;
+    }
+  }
+
   return {
     init,
     markStatsDirty,
@@ -516,5 +817,7 @@ SR.ui = (() => {
     openHelp, openBudget, openCharts, openNews, openOrdinances,
     openExport, openImport, openNewCity,
     openAchievements, openTutorial,
+    openKeymap, openDashboard, openSearch, openScenarios,
+    yearEndReport, gameOver, checkScenarioCompletion,
   };
 })();

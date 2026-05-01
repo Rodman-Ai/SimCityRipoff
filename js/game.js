@@ -12,20 +12,41 @@ SR.game = (() => {
     population: 0, popCommercial: 0, popIndustrial: 0,
     jobs: 0,
     approval: 50,
-    taxRate: 0.09,
+    taxRates: { r: 0.09, c: 0.09, i: 0.09 },
     demand: { r: 50, c: 30, i: 30 },
     power: { supply: 0, demand: 0 },
     water: { supply: 0, demand: 0 },
+    goods: { produced: 0, consumed: 0 },
+    garbage: { produced: 0, handled: 0 },
+    deathCapacityRatio: 1,
+    stadiumApprovalBoost: 0,
+    debtMonths: 0,
+    gameOver: null,
     lastIncome: 0, lastExpense: 0,
     lastLoanPayment: 0,
     history: [],
+    yearStart: { funds: 20000, population: 0 },
     newsLog: [],
     ordinances: {},
-    loans: [],         // [{ id, principal, balance, monthly, monthsLeft }]
+    loans: [],         // [{ id, kind, principal, balance, monthly, monthsLeft }]
     nextLoanId: 1,
     achievements: {},  // key -> { unlocked: bool, at: 'YYYY-MM' }
     tutorialDone: false,
+    activeScenario: null,
+    scenarioStartYear: 0,
+    scenarioStartMonth: 0,
+    search: '',
+    heatmap: null, // null | 'pollution' | 'crime' | 'value' | 'density'
   };
+
+  // Legacy: some older code paths still read SR.game.taxRate. Provide a
+  // compatibility accessor so we don't have to chase every callsite at once.
+  Object.defineProperty(state, 'taxRate', {
+    get() { return (state.taxRates.r + state.taxRates.c + state.taxRates.i) / 3; },
+    set(v) { state.taxRates.r = v; state.taxRates.c = v; state.taxRates.i = v; },
+    enumerable: false,
+    configurable: true,
+  });
 
   // months per real-time second per speed
   const SPEED_RATES = [0, 0.4, 1.6, 4.0];
@@ -51,10 +72,17 @@ SR.game = (() => {
 
   function stepMonth() {
     state.month = (state.month + 1) % 12;
-    if (state.month === 0) state.year++;
+    const yearJustRolled = state.month === 0;
+    if (yearJustRolled) state.year++;
     SR.sim.tick();
     SR.disasters.tickFires();
     SR.ui.markStatsDirty();
+    if (yearJustRolled) {
+      const closingYear = state.year - 1;
+      if (SR.ui && SR.ui.yearEndReport) SR.ui.yearEndReport(closingYear);
+      // Roll the snapshot forward AFTER the report is shown
+      state.yearStart = { funds: state.funds, population: state.population };
+    }
   }
 
   // mode: 'starter' (default), 'demo', or 'blank'
@@ -70,15 +98,27 @@ SR.game = (() => {
     state.year = 2077; state.month = 0;
     state.population = 0; state.popCommercial = 0; state.popIndustrial = 0;
     state.jobs = 0; state.approval = 50;
-    state.taxRate = 0.09;
+    state.taxRates = { r: 0.09, c: 0.09, i: 0.09 };
     state.demand = { r: 50, c: 30, i: 30 };
     state.power = { supply: 0, demand: 0 };
     state.water = { supply: 0, demand: 0 };
+    state.goods = { produced: 0, consumed: 0 };
+    state.garbage = { produced: 0, handled: 0 };
+    state.deathCapacityRatio = 1;
+    state.stadiumApprovalBoost = 0;
+    state.debtMonths = 0;
+    state.gameOver = null;
     state.lastIncome = 0; state.lastExpense = 0; state.lastLoanPayment = 0;
     state.history = []; state.newsLog = []; state.ordinances = {};
+    state.yearStart = { funds: state.funds, population: 0 };
     state.loans = []; state.nextLoanId = 1;
     state.achievements = {};
     state.tutorialDone = false;
+    state.activeScenario = null;
+    state.scenarioStartYear = state.year;
+    state.scenarioStartMonth = state.month;
+    state.search = '';
+    state.heatmap = null;
     SR.grid.init(state.seed);
     let center = { x: SR.GRID_W / 2, y: SR.GRID_H / 2 };
     if (mode === 'starter') center = buildStarterCity();

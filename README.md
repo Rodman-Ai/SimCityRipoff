@@ -112,6 +112,33 @@ Open `http://localhost:8000` and click **JACK IN**.
 - **City advisor** — periodic state-aware tip toasts (power shortage, high
   crime, available landmark unlocks, etc.).
 - **Population density minimap mode** — new `D` button on the mini-map.
+- **Per-zone tax bands** — separate Residential, Commercial, Industrial tax
+  sliders in the Budget modal.
+- **Municipal bonds** — borrow ₡10k–₡50k over 60 months at ~10% interest
+  (cheaper than 30-month loans).
+- **Bankruptcy game-over** — six months below ₡-5,000 ends the game with a
+  glitch overlay; accept a bailout (-25% approval, +₡20k) or restart.
+- **Garbage system** — built-up zones produce garbage; without enough
+  Incinerator coverage it bumps citywide pollution and approval drops.
+- **Production chains (MVP)** — Industrial zones produce goods, Commercial
+  consumes them; shortages cap commercial growth and demand.
+- **Three new buildings** — **Incinerator** (♨ ₡800, takes garbage),
+  **Cryo Bank** (☩ ₡400, mortuary capacity for residential), and
+  **Mega Stadium** (⌬ ₡6k, +6 city-wide approval, requires 1500 pop).
+- **Scenarios** — three time-limited goals (Boom Town: 5k pop in 60mo;
+  Eco-Mayor: 1k pop with avg pollution <10 in 48mo; Megacorp Tycoon: build
+  Megacorp + Arcology + Plaza in 72mo). Reward credits on completion.
+- **City Health Dashboard** — radar-chart modal showing power, water,
+  approval, land value, air quality, and order at a glance.
+- **Find Building** — search modal pulse-highlights every matching
+  building on the map.
+- **Heat-map overlay** — tint the main view by pollution / crime / land
+  value / population density.
+- **Year-end report** — auto-pops every January with year-over-year deltas
+  and a snarky quote.
+- **Keymap overlay** — press `?` to see every shortcut.
+- **Long-press to undo** — hold a tap for 600 ms on mobile to undo the
+  current placement.
 - **No build step, no dependencies** — pure HTML, CSS, and vanilla JS. Open
   the file, play the game.
 

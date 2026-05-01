@@ -10,7 +10,13 @@ SR.input = (() => {
   let pinchStartDist = 0;
   let pinchStartZoom = 1;
   let pinchCenter = null;
+  let longPressTimer = null;
+  let longPressFired = false;
   const cursor = { x: 0, y: 0, sx: 0, sy: 0 };
+
+  function cancelLongPress() {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  }
 
   // Bresenham line — call applyAt on every tile from (x0,y0) to (x1,y1)
   // so fast drags don't skip squares.
@@ -123,6 +129,16 @@ SR.input = (() => {
         lastTileX = cursor.x; lastTileY = cursor.y;
         SR.tools.beginAction();
         SR.tools.applyAt(cursor.x, cursor.y);
+        // Long-press to undo (mobile alternative to Ctrl+Z)
+        longPressFired = false;
+        cancelLongPress();
+        longPressTimer = setTimeout(() => {
+          longPressFired = true;
+          SR.tools.endAction();
+          SR.tools.undo();
+          dragMode = null;
+          dragging = false;
+        }, 600);
       }
       lastTap = now;
       dragging = true;
@@ -148,6 +164,7 @@ SR.input = (() => {
       if (dragMode === 'pan') SR.camera.pan(dx, dy);
       else if (dragMode === 'paint') {
         if (cursor.x !== lastTileX || cursor.y !== lastTileY) {
+          cancelLongPress(); // any movement cancels long-press
           paintLine(lastTileX, lastTileY, cursor.x, cursor.y);
           lastTileX = cursor.x; lastTileY = cursor.y;
         }
@@ -168,7 +185,8 @@ SR.input = (() => {
   }
   function onTouchEnd(e) {
     if (e.touches.length === 0) {
-      if (dragMode === 'paint') SR.tools.endAction();
+      cancelLongPress();
+      if (dragMode === 'paint' && !longPressFired) SR.tools.endAction();
       dragging = false; dragMode = null; lastTileX = -1; lastTileY = -1;
     }
     else if (e.touches.length === 1 && dragMode === 'pinch') {
@@ -202,6 +220,7 @@ SR.input = (() => {
       case 'arrowright': SR.camera.pan(-60, 0); break;
       case 's': if (e.ctrlKey || e.metaKey) { e.preventDefault(); SR.save.save(); SR.ui.alert('CITY SAVED', 'good'); } break;
       case 'z': if (e.ctrlKey || e.metaKey) { e.preventDefault(); SR.tools.undo(); } break;
+      case '?': SR.ui.openKeymap(); break;
     }
   }
 

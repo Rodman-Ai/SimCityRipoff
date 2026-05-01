@@ -90,6 +90,30 @@ SR.BUILDINGS = {
     color: '#0a1a2a', trim: '#3ad7ff', glyph: '⊙', category: 'water',
   },
 
+  // --- Sanitation / civic ---
+  incinerator: {
+    tool: 'build_incinerator', label: 'Incinerator', cost: 800, maint: 80, size: 2,
+    power: -10, water: -2, pop: 0, jobs: 12, capacity: 0, range: 5,
+    pollution: 12, garbageCapacity: 200,
+    crimeRed: 0, fireRed: 0, landBoost: -4, needsRoad: true,
+    color: '#1a1006', trim: '#ff6a00', glyph: '♨', category: 'service',
+  },
+  cemetery: {
+    tool: 'build_cemetery', label: 'Cryo Bank', cost: 400, maint: 30, size: 2,
+    power: -2, water: -1, pop: 0, jobs: 4, capacity: 0, range: 8,
+    burialCapacity: 1500,
+    crimeRed: 0, fireRed: 0, landBoost: 1, needsRoad: true,
+    color: '#0a141a', trim: '#9adfff', glyph: '☩', category: 'service',
+  },
+  stadium: {
+    tool: 'build_stadium', label: 'Mega Stadium', cost: 6000, maint: 200, size: 3,
+    power: -30, water: -10, pop: 0, jobs: 200, capacity: 0, range: 20,
+    approvalBoost: 6, // adds to global approval each tick
+    crimeRed: 0, fireRed: 0, landBoost: 8, needsRoad: true,
+    color: '#1a0a14', trim: '#ff6a00', glyph: '⌬', category: 'service',
+    requires: { population: 1500 },
+  },
+
   // --- Megastructures / landmarks ---
   arcology: {
     tool: 'build_arcology', label: 'Neon Arcology', cost: 35000, maint: 1500, size: 3,
@@ -151,6 +175,64 @@ function _hasAnyZone(kind) {
   for (const t of SR.grid.tiles) if (t.zone === kind && t.level > 0) return true;
   return false;
 }
+
+// ---- Scenarios (#71) ----
+// Each scenario has: key, name, desc, deadlineMonths, test(g)→bool, progress(g)→0..1, reward.
+SR.SCENARIOS = [
+  {
+    key: 'boom',
+    name: 'BOOM TOWN',
+    desc: 'Reach 5,000 population within 60 months.',
+    deadlineMonths: 60,
+    reward: 5000,
+    test: g => g.population >= 5000,
+    progress: g => Math.min(1, g.population / 5000),
+  },
+  {
+    key: 'eco',
+    name: 'ECO-MAYOR',
+    desc: 'Reach 1,000 population while keeping average pollution under 10 (48 months).',
+    deadlineMonths: 48,
+    reward: 4000,
+    test: g => {
+      if (g.population < 1000) return false;
+      let n = 0, s = 0;
+      for (const t of SR.grid.tiles) if (t.zone) { n++; s += t.pollution || 0; }
+      return n > 0 && (s / n) < 10;
+    },
+    progress: g => {
+      let n = 0, s = 0;
+      for (const t of SR.grid.tiles) if (t.zone) { n++; s += t.pollution || 0; }
+      const popK = Math.min(1, g.population / 1000);
+      const polK = n > 0 ? Math.max(0, Math.min(1, 1 - (s / n - 10) / 20)) : 1;
+      return Math.min(popK, polK);
+    },
+  },
+  {
+    key: 'tycoon',
+    name: 'MEGACORP TYCOON',
+    desc: 'Build the Megacorp Tower, an Arcology, and Rodman Plaza (72 months).',
+    deadlineMonths: 72,
+    reward: 8000,
+    test: g => {
+      let m = false, a = false, p = false;
+      for (const t of SR.grid.tiles) {
+        if (t.building === 'megacorp') m = true;
+        if (t.building === 'arcology') a = true;
+        if (t.building === 'plaza') p = true;
+      }
+      return m && a && p;
+    },
+    progress: g => {
+      let n = 0;
+      const seen = { megacorp: false, arcology: false, plaza: false };
+      for (const t of SR.grid.tiles) {
+        if (seen[t.building] === false) { seen[t.building] = true; n++; }
+      }
+      return n / 3;
+    },
+  },
+];
 
 SR.ACHIEVEMENTS = [
   { key: 'pop100',  name: 'Boot Sequence',     desc: 'Reach 100 citizens',                  test: g => g.population >= 100 },
